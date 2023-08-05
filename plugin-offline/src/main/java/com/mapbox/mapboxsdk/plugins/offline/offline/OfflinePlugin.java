@@ -111,7 +111,7 @@ public class OfflinePlugin {
         OfflineDownloadOptions offlineDownload = null;
         if (!offlineDownloads.isEmpty()) {
             for (OfflineDownloadOptions download : offlineDownloads) {
-                if (download.uuid() == offlineRegion.getId()) {
+                if (download.getUuid() == offlineRegion.getId()) {
                     offlineDownload = download;
                 }
             }

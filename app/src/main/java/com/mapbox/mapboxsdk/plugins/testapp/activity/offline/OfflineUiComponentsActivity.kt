@@ -28,7 +28,7 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
         }
     }
 
-    fun onOfflineRegionSelectorButtonClicked() {
+    private fun onOfflineRegionSelectorButtonClicked() {
         // Create the offline region selector options
         val options = RegionSelectionOptions.builder()
             .statingCameraPosition(
@@ -51,10 +51,9 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
 
             if (data?.let { OfflineRegionSelector.getRegionName(it) } != null) {
                 builder.contentText(OfflineRegionSelector.getRegionName(data))
+                val options = OfflineRegionSelector.getOfflineDownloadOptions(data, builder.build())
+                OfflinePlugin.getInstance(this).startDownload(options)
             }
-
-            val options = OfflineRegionSelector.getOfflineDownloadOptions(data, builder.build())
-            OfflinePlugin.getInstance(this).startDownload(options)
 
             Toast.makeText(
                 this,

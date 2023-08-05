@@ -1,12 +1,16 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline;
 
+import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
+
 import android.app.Service;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.collection.LongSparseArray;
 import androidx.core.app.NotificationCompat;
@@ -18,27 +22,22 @@ import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition;
 import com.mapbox.mapboxsdk.offline.OfflineRegionError;
 import com.mapbox.mapboxsdk.offline.OfflineRegionStatus;
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
-import com.mapbox.mapboxsdk.plugins.offline.utils.NotificationUtils;
+import com.mapbox.mapboxsdk.plugins.offline.utils.NotificationUtilsKt;
 import com.mapbox.mapboxsdk.snapshotter.MapSnapshot;
 import com.mapbox.mapboxsdk.snapshotter.MapSnapshotter;
 
 import timber.log.Timber;
 
-import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
-import static com.mapbox.mapboxsdk.plugins.offline.utils.NotificationUtils.setupNotificationChannel;
-
 /**
- * Internal usage only, use this service indirectly by using methods found in
- * {@link OfflinePlugin}. When an offline download is initiated
- * for the first time using this plugin, this service is created, captures the {@code StartCommand}
- * and collects the {@link OfflineDownloadOptions} instance which holds all the download metadata
+ * Internal usage only, use this service indirectly by using methods found in {@link OfflinePlugin}. When an offline
+ * download is initiated for the first time using this plugin, this service is created, captures the
+ * {@code StartCommand} and collects the {@link OfflineDownloadOptions} instance which holds all the download metadata
  * needed to perform the download.
  * <p>
- * If another offline download is initiated through the
- * {@link OfflinePlugin} while another download is currently in
- * process, this service will add it to the {@link OfflineManager} queue for downloading,
- * downstream, this will execute the region downloads asynchronously (although writing to the same
- * file). Once all downloads have been completed, this service is stopped and destroyed.
+ * If another offline download is initiated through the {@link OfflinePlugin} while another download is currently in
+ * process, this service will add it to the {@link OfflineManager} queue for downloading, downstream, this will execute
+ * the region downloads asynchronously (although writing to the same file). Once all downloads have been completed, this
+ * service is stopped and destroyed.
  *
  * @since 0.1.0
  */
@@ -56,11 +55,11 @@ public class OfflineDownloadService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Timber.v("Service onCreate method called.");
+        Timber.v("onCreate called");
         // Setup notification manager and channel
         notificationManager = NotificationManagerCompat.from(this);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setupNotificationChannel();
+            NotificationUtilsKt.setupNotificationChannel();
         }
 
         // Register the broadcast receiver needed for updating APIs in the OfflinePlugin class.
@@ -70,11 +69,10 @@ public class OfflineDownloadService extends Service {
     }
 
     /**
-     * Called each time a new download is initiated. First it acquires the
-     * {@link OfflineDownloadOptions} from the intent and if found, the process of downloading the
-     * offline region carries on to the {@link #onResolveCommand(String, OfflineDownloadOptions)}.
-     * If the {@link OfflineDownloadOptions} fails to be found inside the intent, the service is
-     * stopped (only if no other downloads are currently running) and throws a
+     * Called each time a new download is initiated. First it acquires the {@link OfflineDownloadOptions} from the
+     * intent and if found, the process of downloading the offline region carries on to the
+     * {@link #onResolveCommand(String, OfflineDownloadOptions)}. If the {@link OfflineDownloadOptions} fails to be
+     * found inside the intent, the service is stopped (only if no other downloads are currently running) and throws a
      * {@link NullPointerException}.
      * <p>
      * {@inheritDoc}
@@ -91,21 +89,21 @@ public class OfflineDownloadService extends Service {
             } else {
                 stopSelf(startId);
                 throw new NullPointerException("A DownloadOptions instance must be passed into the service to"
-                    + " begin downloading.");
+                        + " begin downloading.");
             }
         }
         return START_STICKY;
     }
 
     /**
-     * Several actions can take place inside this service including starting and canceling a specific
-     * region download. First, it is determined what action to take by using the {@code intentAction}
-     * parameter. This action is finally passed in to the correct map offline methods.
+     * Several actions can take place inside this service including starting and canceling a specific region download.
+     * First, it is determined what action to take by using the {@code intentAction} parameter. This action is finally
+     * passed in to the correct map offline methods.
      *
      * @param intentAction    string holding the task that should be performed on the specific
      *                        {@link OfflineDownloadOptions} regional download.
-     * @param offlineDownload the download model which defines the region and other metadata needed to
-     *                        download the correct region.
+     * @param offlineDownload the download model which defines the region and other metadata needed to download the
+     *                        correct region.
      * @since 0.1.0
      */
     private void onResolveCommand(String intentAction, OfflineDownloadOptions offlineDownload) {
@@ -116,64 +114,66 @@ public class OfflineDownloadService extends Service {
         }
     }
 
-    private void createDownload(final OfflineDownloadOptions offlineDownload) {
-        final OfflineRegionDefinition definition = offlineDownload.definition();
-        final byte[] metadata = offlineDownload.metadata();
-        OfflineManager.Companion.getInstance(getApplicationContext())
-            .createOfflineRegion(
+    private void createDownload(@NonNull final OfflineDownloadOptions offlineDownload) {
+        final OfflineRegionDefinition definition = offlineDownload.getDefinition();
+        final byte[] metadata = offlineDownload.getMetadata();
+        OfflineManager.Companion.getInstance(getApplicationContext()).createOfflineRegion(
                 definition,
                 metadata,
                 new OfflineManager.CreateOfflineRegionCallback() {
                     @Override
-                    public void onCreate(OfflineRegion offlineRegion) {
-                        OfflineDownloadOptions options
-                            = offlineDownload.toBuilder().uuid(offlineRegion.getId()).build();
+                    public void onCreate(@NonNull OfflineRegion offlineRegion) {
+                        OfflineDownloadOptions options = offlineDownload.copy(offlineDownload.getDefinition(),
+                                offlineDownload.getNotificationOptions(), offlineDownload.getRegionName(),
+                                offlineDownload.getMetadata(), offlineDownload.getProgress(),
+                                offlineRegion.getId());
                         OfflineDownloadStateReceiver.dispatchStartBroadcast(getApplicationContext(), options);
-                        regionLongSparseArray.put(options.uuid(), offlineRegion);
+                        regionLongSparseArray.put(options.getUuid(), offlineRegion);
 
                         launchDownload(options, offlineRegion);
                         showNotification(options);
                     }
 
                     @Override
-                    public void onError(String error) {
+                    public void onError(@NonNull String error) {
                         OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                            getApplicationContext(),
-                            offlineDownload,
-                            error
+                                getApplicationContext(),
+                                offlineDownload,
+                                error
                         );
                     }
                 });
     }
 
-
     void showNotification(final OfflineDownloadOptions offlineDownload) {
-        notificationBuilder = NotificationUtils.toNotificationBuilder(this,
-            offlineDownload, OfflineDownloadStateReceiver.createNotificationIntent(
-                getApplicationContext(), offlineDownload), offlineDownload.notificationOptions(),
-            OfflineDownloadStateReceiver.createCancelIntent(getApplicationContext(), offlineDownload)
+        Timber.d("showNotification() called with: offlineDownload = [%s]", offlineDownload);
+        notificationBuilder = NotificationUtilsKt.toNotificationBuilder(this,
+                offlineDownload,
+                OfflineDownloadStateReceiver.createNotificationIntent(getApplicationContext(), offlineDownload),
+                OfflineDownloadStateReceiver.createCancelIntent(getApplicationContext(), offlineDownload)
         );
         if (regionLongSparseArray.isEmpty()) {
-            startForeground(offlineDownload.uuid().intValue(), notificationBuilder.build());
+            // TODO why is this here, this service is never started as a foregroundService
+            startForeground((int) offlineDownload.getUuid(), notificationBuilder.build());
         } else {
-            notificationManager.notify(offlineDownload.uuid().intValue(), notificationBuilder.build());
+            Timber.d("Notifying manager for offline download");
+            notificationManager.notify((int) offlineDownload.getUuid(), notificationBuilder.build());
+            notificationManager.notify(0, NotificationUtilsKt.makeSummaryNotification(this, offlineDownload));
         }
-        if (offlineDownload.notificationOptions().requestMapSnapshot()) {
+        if (offlineDownload.getNotificationOptions().getRequestMapSnapshot()) {
             // create map bitmap to show as notification icon
-            createMapSnapshot(offlineDownload.definition(), new MapSnapshotter.SnapshotReadyCallback() {
-                @Override
-                public void onSnapshotReady(MapSnapshot snapshot) {
-                    final int regionId = offlineDownload.uuid().intValue();
-                    if (regionLongSparseArray.get(regionId) != null) {
-                        notificationBuilder.setLargeIcon(snapshot.getBitmap());
-                        notificationManager.notify(regionId, notificationBuilder.build());
-                    }
+            createMapSnapshot(offlineDownload.getDefinition(), snapshot -> {
+                final int regionId = (int) offlineDownload.getUuid();
+                if (regionLongSparseArray.get(regionId) != null) {
+                    notificationBuilder.setLargeIcon(snapshot.getBitmap());
+                    Timber.d("Notifying manager for region");
+                    notificationManager.notify(regionId, notificationBuilder.build());
                 }
             });
         }
     }
 
-    private void createMapSnapshot(OfflineRegionDefinition definition,
+    private void createMapSnapshot(@NonNull OfflineRegionDefinition definition,
                                    MapSnapshotter.SnapshotReadyCallback callback) {
         Resources resources = getResources();
         int height = (int) resources.getDimension(android.R.dimen.notification_large_icon_height);
@@ -186,8 +186,8 @@ public class OfflineDownloadService extends Service {
         mapSnapshotter.start(callback);
     }
 
-    private void cancelDownload(final OfflineDownloadOptions offlineDownload) {
-        int serviceId = offlineDownload.uuid().intValue();
+    private void cancelDownload(@NonNull final OfflineDownloadOptions offlineDownload) {
+        int serviceId = (int) offlineDownload.getUuid();
         OfflineRegion offlineRegion = regionLongSparseArray.get(serviceId);
         if (offlineRegion != null) {
             offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE);
@@ -195,15 +195,16 @@ public class OfflineDownloadService extends Service {
             offlineRegion.delete(new OfflineRegion.OfflineRegionDeleteCallback() {
                 @Override
                 public void onDelete() {
-                    // no-op
+                    Timber.v("Offline region {%s} deleted", offlineRegion.getId());
                 }
 
                 @Override
-                public void onError(String error) {
+                public void onError(@NonNull String error) {
+                    Timber.w("Offline region {%s} deletion error: %s", offlineRegion.getId(), error);
                     OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                        getApplicationContext(),
-                        offlineDownload,
-                        error
+                            getApplicationContext(),
+                            offlineDownload,
+                            error
                     );
                 }
             });
@@ -223,10 +224,10 @@ public class OfflineDownloadService extends Service {
         stopSelf(regionId);
     }
 
-    void launchDownload(final OfflineDownloadOptions offlineDownload, final OfflineRegion offlineRegion) {
+    void launchDownload(final OfflineDownloadOptions offlineDownload, @NonNull final OfflineRegion offlineRegion) {
         offlineRegion.setObserver(new OfflineRegion.OfflineRegionObserver() {
             @Override
-            public void onStatusChanged(OfflineRegionStatus status) {
+            public void onStatusChanged(@NonNull OfflineRegionStatus status) {
                 if (status.isComplete()) {
                     finishDownload(offlineDownload, offlineRegion);
                     return;
@@ -235,16 +236,16 @@ public class OfflineDownloadService extends Service {
             }
 
             @Override
-            public void onError(OfflineRegionError error) {
+            public void onError(@NonNull OfflineRegionError error) {
                 OfflineDownloadStateReceiver.dispatchErrorBroadcast(getApplicationContext(), offlineDownload,
-                    error.getReason(), error.getMessage());
-                stopSelf(offlineDownload.uuid().intValue());
+                        error.getReason(), error.getMessage());
+                stopSelf((int) offlineDownload.getUuid());
             }
 
             @Override
             public void mapboxTileCountLimitExceeded(long limit) {
                 OfflineDownloadStateReceiver.dispatchErrorBroadcast(getApplicationContext(), offlineDownload,
-                    "Mapbox tile count limit exceeded:" + limit);
+                        "Mapbox tile count limit exceeded:" + limit);
             }
         });
 
@@ -253,32 +254,31 @@ public class OfflineDownloadService extends Service {
     }
 
     /**
-     * When a particular download has been completed, this method's called which handles removing the
-     * notification and setting the download state.
+     * When a particular download has been completed, this method's called which handles removing the notification and
+     * setting the download state.
      *
      * @param offlineRegion   the region which has finished being downloaded
      * @param offlineDownload the corresponding options used to define the offline region
      * @since 0.1.0
      */
-    void finishDownload(OfflineDownloadOptions offlineDownload, OfflineRegion offlineRegion) {
+    void finishDownload(OfflineDownloadOptions offlineDownload, @NonNull OfflineRegion offlineRegion) {
         OfflineDownloadStateReceiver.dispatchSuccessBroadcast(this, offlineDownload);
         offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE);
         offlineRegion.setObserver(null);
-        removeOfflineRegion(offlineDownload.uuid().intValue());
+        removeOfflineRegion((int) offlineDownload.getUuid());
     }
 
-    void progressDownload(OfflineDownloadOptions offlineDownload, OfflineRegionStatus status) {
+    void progressDownload(@NonNull OfflineDownloadOptions offlineDownload, @NonNull OfflineRegionStatus status) {
         int percentage = (int) (status.getRequiredResourceCount() >= 0
-            ? (100.0 * status.getCompletedResourceCount() / status.getRequiredResourceCount()) :
-            0.0);
+                ? (100.0 * status.getCompletedResourceCount() / status.getRequiredResourceCount()) :
+                0.0);
 
-        offlineDownload = offlineDownload.toBuilder().progress(percentage).build();
-
-        if (percentage % 2 == 0 && regionLongSparseArray.get(offlineDownload.uuid().intValue()) != null) {
+        offlineDownload.setProgress(percentage);
+        if (percentage % 2 == 0 && regionLongSparseArray.get(offlineDownload.getUuid()) != null) {
             OfflineDownloadStateReceiver.dispatchProgressChanged(this, offlineDownload, percentage);
             if (notificationBuilder != null) {
                 notificationBuilder.setProgress(100, percentage, false);
-                notificationManager.notify(offlineDownload.uuid().intValue(), notificationBuilder.build());
+                notificationManager.notify((int) offlineDownload.getUuid(), notificationBuilder.build());
             }
         }
     }

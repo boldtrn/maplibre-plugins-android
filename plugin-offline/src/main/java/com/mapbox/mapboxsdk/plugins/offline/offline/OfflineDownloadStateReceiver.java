@@ -9,6 +9,8 @@ import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
 
 import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
 
+import androidx.annotation.NonNull;
+
 public class OfflineDownloadStateReceiver extends BroadcastReceiver {
 
     @Override
@@ -39,7 +41,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchProgressChanged(Context context, OfflineDownloadOptions offlineDownload,
-                                        int percentage) {
+            int percentage) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_PROGRESS);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -66,7 +68,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchErrorBroadcast(Context context, OfflineDownloadOptions offlineDownload,
-                                       String error, String message) {
+            String error, String message) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_ERROR);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -75,13 +77,14 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
         context.getApplicationContext().sendBroadcast(intent);
     }
 
-    static void dispatchCancelBroadcast(Context context, OfflineDownloadOptions offlineDownload) {
+    static void dispatchCancelBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_CANCEL);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
         context.getApplicationContext().sendBroadcast(intent);
     }
 
+    @NonNull
     static Intent createCancelIntent(Context context, OfflineDownloadOptions offlineDownload) {
         Intent cancelIntent = new Intent(context, OfflineDownloadService.class);
         cancelIntent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -89,15 +92,15 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
         return cancelIntent;
     }
 
-    static PendingIntent createNotificationIntent(Context context, OfflineDownloadOptions offlineDownload) {
-        Class returnActivity = offlineDownload.notificationOptions().getReturnActivity();
+    static PendingIntent createNotificationIntent(Context context, @NonNull OfflineDownloadOptions offlineDownload) {
+        Class<?> returnActivity = offlineDownload.getNotificationOptions().getReturnActivityClass();
         Intent notificationIntent = new Intent(context, returnActivity);
         notificationIntent.putExtra(KEY_BUNDLE, offlineDownload);
         return PendingIntent.getActivity(
-            context,
-            0,
-            notificationIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                context,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
     }
 }
