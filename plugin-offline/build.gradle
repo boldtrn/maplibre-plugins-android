@@ -1,7 +1,8 @@
-apply plugin: 'com.android.library'
-apply plugin: 'org.jetbrains.kotlin.android'
-apply plugin: 'kotlin-parcelize'
-apply plugin: 'maven-publish'
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-parcelize'
+}
 
 android {
     compileSdkVersion androidVersions.compileSdkVersion
@@ -23,6 +24,15 @@ android {
 
     // Avoid naming conflicts
     resourcePrefix 'mapbox_'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
 }
 
 dependencies {
