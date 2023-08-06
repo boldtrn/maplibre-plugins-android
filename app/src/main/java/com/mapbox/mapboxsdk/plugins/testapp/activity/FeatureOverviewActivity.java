@@ -298,11 +298,11 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
 
             ViewHolder(View view) {
                 super(view);
-                Typeface typeface = FontCache.get("Roboto-Regular.ttf", view.getContext());
+                //Typeface typeface = FontCache.get("Roboto-Regular.ttf", view.getContext());
                 labelView = view.findViewById(R.id.nameView);
-                labelView.setTypeface(typeface);
+                //labelView.setTypeface(typeface);
                 descriptionView = view.findViewById(R.id.descriptionView);
-                descriptionView.setTypeface(typeface);
+                //descriptionView.setTypeface(typeface);
             }
         }
 
@@ -340,7 +340,7 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
                     tf = Typeface.createFromAsset(context.getAssets(), name);
                     fontCache.put(name, tf);
                 } catch (Exception exception) {
-                    Timber.e("Font not found");
+                    Timber.e(exception,"Font not found: "+name);
                 }
             }
             return tf;
@@ -481,7 +481,7 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
         SectionViewHolder(@NonNull View view, @IdRes int textRes) {
             super(view);
             title = view.findViewById(textRes);
-            title.setTypeface(FontCache.get("Roboto-Medium.ttf", view.getContext()));
+            //title.setTypeface(FontCache.get("Roboto-Medium.ttf", view.getContext()));
         }
     }
 

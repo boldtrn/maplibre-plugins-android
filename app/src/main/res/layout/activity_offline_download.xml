@@ -143,12 +143,6 @@ android:orientation="vertical">
       android:layout_marginBottom="4dp"
       android:text="Style url:"/>
 
-    <Spinner
-      android:id="@+id/spinnerStyleUrl"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginBottom="8dp"/>
-
     <TextView
       android:id="@+id/textViewMinText"
       android:layout_width="match_parent"
@@ -177,14 +171,15 @@ android:orientation="vertical">
 
 </androidx.core.widget.NestedScrollView>
 
-<com.google.android.material.floatingactionbutton.FloatingActionButton
-  android:id="@+id/fabStartDownload"
-  android:layout_width="wrap_content"
-  android:layout_height="wrap_content"
-  android:layout_gravity="end|bottom"
-  android:layout_margin="16dp"
-  app:srcCompat="@drawable/ic_save"
-  android:tint="@android:color/white"
-  app:backgroundTint="@color/colorPrimary"/>
+  <com.google.android.material.floatingactionbutton.FloatingActionButton
+      android:id="@+id/fabStartDownload"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="end|bottom"
+      android:layout_margin="16dp"
+      android:clickable="true"
+      android:tint="@android:color/white"
+      app:backgroundTint="@color/colorPrimary"
+      app:srcCompat="@drawable/ic_save" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -21,8 +21,8 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_offline_ui_components)
         binding = ActivityOfflineUiComponentsBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         binding.fabRegionSelector.setOnClickListener {
             onOfflineRegionSelectorButtonClicked()
         }
@@ -53,7 +53,14 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
                 builder.contentText(OfflineRegionSelector.getRegionName(data))
             }
 
-            val options = OfflineRegionSelector.getOfflineDownloadOptions(data, builder.build())
+
+            // customize notification appearance
+            val notificationOptions = NotificationOptions.builder(this)
+                .smallIconRes(R.drawable.maplibre_logo_icon)
+                .returnActivity(OfflineUiComponentsActivity::class.java.name)
+                .build()
+
+            val options = OfflineRegionSelector.getOfflineDownloadOptions(data, notificationOptions)
             OfflinePlugin.getInstance(this).startDownload(options)
 
             Toast.makeText(

@@ -25,7 +25,7 @@ public class OfflineActivity extends AppCompatActivity implements RegionSelected
         // Hide any toolbar an apps theme might automatically place in activities. Typically creating an
         // activity style would cover this issue but this seems to prevent us from getting the users
         // application colorPrimary color.
-        getWindow().requestFeature(Window.FEATURE_ACTION_BAR);
+        //getWindow().requestFeature(Window.FEATURE_ACTION_BAR);
         getSupportActionBar().hide();
         setContentView(R.layout.mapbox_offline_activity);
 

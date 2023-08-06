@@ -46,11 +46,16 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
                 isDownloading = !status.isComplete
             }
             updateFab()
+            Toast.makeText(
+                applicationContext,
+                "Is downloading: $isDownloading",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         override fun onError(error: String?) {
             Toast.makeText(
-                this@OfflineRegionDetailActivity,
+                applicationContext,
                 "Error getting offline region state: $error",
                 Toast.LENGTH_SHORT
             ).show()
@@ -60,7 +65,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
     private val offlineRegionDeleteCallback = object : OfflineRegion.OfflineRegionDeleteCallback {
         override fun onDelete() {
             Toast.makeText(
-                this@OfflineRegionDetailActivity,
+                applicationContext,
                 "Region deleted.",
                 Toast.LENGTH_SHORT
             ).show()
@@ -70,7 +75,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
         override fun onError(error: String) {
             binding.fabDelete.isEnabled = true
             Toast.makeText(
-                this@OfflineRegionDetailActivity,
+                applicationContext,
                 "Error getting offline region state: $error",
                 Toast.LENGTH_SHORT
             ).show()
@@ -79,8 +84,8 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_offline_region_detail)
         binding = ActivityOfflineRegionDetailBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         mapView = findViewById<View>(R.id.mapView) as MapView
         mapView.onCreate(savedInstanceState)
         offlinePlugin = OfflinePlugin.getInstance(this)
@@ -175,6 +180,8 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
                 if (offlineDownload != null) {
                     offlinePlugin?.cancelDownload(offlineDownload)
                     isDownloading = false
+                } else {
+                    offlineRegion?.delete(offlineRegionDeleteCallback)
                 }
             }
             view.visibility = View.GONE

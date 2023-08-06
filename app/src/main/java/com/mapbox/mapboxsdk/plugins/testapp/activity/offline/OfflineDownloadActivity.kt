@@ -28,10 +28,11 @@ class OfflineDownloadActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityOfflineDownloadBinding.inflate(layoutInflater)
-        setContentView(R.layout.activity_offline_download)
+        setContentView(binding.root)
         initUi()
         initSeekbarListeners()
         binding.fabStartDownload.setOnClickListener {
+            println("Test...")
             if (binding.seekbarMaxZoom.progress.toFloat() > binding.seekbarMinZoom.progress.toFloat()) {
                 onDownloadRegion()
             } else {
@@ -43,12 +44,12 @@ class OfflineDownloadActivity : AppCompatActivity() {
                 ).show()
             }
         }
+        println("test test")
     }
 
     private fun initUi() {
         initEditTexts()
         initSeekbars()
-        initSpinner()
         initZoomLevelTextviews()
     }
 
@@ -66,17 +67,6 @@ class OfflineDownloadActivity : AppCompatActivity() {
         binding.seekbarMinZoom.progress = 16
         binding.seekbarMaxZoom.max = maxZoom
         binding.seekbarMaxZoom.progress = 19
-    }
-
-    private fun initSpinner() {
-        val styles = ArrayList<String>()
-        styles.add(Style.getPredefinedStyle("Streets"))
-        styles.add(Style.getPredefinedStyle("Dark"))
-        styles.add(Style.getPredefinedStyle("Light"))
-        styles.add(Style.getPredefinedStyle("Outdoors"))
-        val spinnerArrayAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, styles)
-        spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spinnerStyleUrl.adapter = spinnerArrayAdapter
     }
 
     private fun initZoomLevelTextviews() {
