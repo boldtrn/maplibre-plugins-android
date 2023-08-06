@@ -57,7 +57,7 @@ data class OfflineDownloadOptions(
 
     @Deprecated(
         "Use proper field access via Kotlin 'progress' or Java 'getProgress()'",
-        replaceWith = ReplaceWith("getProgress()")
+        replaceWith = ReplaceWith("getUuid()")
     )
     fun uuid(): Long {
         return uuid
@@ -106,7 +106,7 @@ data class OfflineDownloadOptions(
     class Builder {
         private lateinit var definition: OfflineRegionDefinition
         private lateinit var notificationOptions: NotificationOptions
-        private lateinit var regionName: String
+        private var regionName: String = ""
         private var metadata: ByteArray = byteArrayOf()
         private var progress: Int = 0
         private var uuid: Long = UUID.randomUUID().mostSignificantBits
@@ -124,24 +124,28 @@ data class OfflineDownloadOptions(
         )
         fun notificationOptions(notificationOptions: NotificationOptions) =
             apply { this.notificationOptions = notificationOptions }
+
         @Deprecated(
             "Use idiomatic Kotlin constructor with named properties",
             replaceWith = ReplaceWith("OfflineDownloadOptions(regionName = regionName)")
         )
         fun regionName(regionName: String) =
             apply { this.regionName = regionName }
+
         @Deprecated(
             "Use idiomatic Kotlin constructor with named properties",
             replaceWith = ReplaceWith("OfflineDownloadOptions(metadata = metadata)")
         )
         fun metadata(metadata: ByteArray) =
             apply { this.metadata = metadata }
+
         @Deprecated(
             "Use idiomatic Kotlin constructor with named properties",
             replaceWith = ReplaceWith("OfflineDownloadOptions(progress = progress)")
         )
         fun progress(progress: Int) =
             apply { this.progress = progress }
+
         @Deprecated(
             "Use idiomatic Kotlin constructor with named properties",
             replaceWith = ReplaceWith("OfflineDownloadOptions(uuid = uuid)")

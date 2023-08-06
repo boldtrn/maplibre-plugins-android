@@ -6,7 +6,6 @@ import androidx.annotation.DrawableRes
 import com.mapbox.mapboxsdk.plugins.offline.R
 import kotlinx.parcelize.Parcelize
 
-
 @Parcelize
 data class NotificationOptions(
     @DrawableRes val smallIconRes: Int = android.R.drawable.stat_sys_download,
@@ -16,7 +15,7 @@ data class NotificationOptions(
     val cancelText: String,
     val requestMapSnapshot: Boolean = true,
     val grouping: Boolean = true,
-    ) : Parcelable {
+) : Parcelable {
 
     constructor(
         context: Context,

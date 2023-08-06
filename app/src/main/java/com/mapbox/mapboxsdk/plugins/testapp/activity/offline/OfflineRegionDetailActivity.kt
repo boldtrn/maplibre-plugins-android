@@ -18,6 +18,9 @@ import com.mapbox.mapboxsdk.plugins.testapp.R
 import com.mapbox.mapboxsdk.plugins.testapp.databinding.ActivityOfflineRegionDetailBinding
 import timber.log.Timber
 
+private const val STRING_ERROR = "ERROR"
+const val KEY_REGION_ID_BUNDLE = "com.mapbox.mapboxsdk.plugins.offline.bundle.id"
+
 /**
  * Activity showing the detail of an offline region.
  *
@@ -79,9 +82,9 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_offline_region_detail)
         binding = ActivityOfflineRegionDetailBinding.inflate(layoutInflater)
-        mapView = findViewById<View>(R.id.mapView) as MapView
+        setContentView(binding.root)
+        mapView = binding.mapView
         mapView.onCreate(savedInstanceState)
         offlinePlugin = OfflinePlugin.getInstance(this)
 
@@ -96,13 +99,9 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
     private fun loadOfflineDownload(bundle: Bundle) {
         val regionId: Long
         val offlineDownload = bundle.getParcelable<OfflineDownloadOptions>(KEY_BUNDLE)
-        regionId = if (offlineDownload != null) {
-            // coming from notification
-            offlineDownload.uuid()
-        } else {
-            // coming from list
-            bundle.getLong(KEY_REGION_ID_BUNDLE, -1)
-        }
+        regionId = // coming from notification
+            offlineDownload?.uuid ?: // coming from list
+                    bundle.getLong(KEY_REGION_ID_BUNDLE, -1)
 
         if (regionId != -1L) {
             loadOfflineRegion(regionId)
@@ -118,8 +117,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
                         for (region in offlineRegions) {
                             if (region.id == id) {
                                 offlineRegion = region
-                                val definition = region.definition as OfflineRegionDefinition
-                                setupUI(definition)
+                                setupUI(region.definition)
                                 return
                             }
                         }
@@ -144,7 +142,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
 
     private fun setupUI(definition: OfflineRegionDefinition) {
         // update map
-        mapView?.getMapAsync { mapboxMap ->
+        mapView.getMapAsync { mapboxMap ->
             // correct style
             mapboxMap.setOfflineRegionDefinition(definition) { _ ->
                 // restrict camera movement
@@ -163,18 +161,20 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
         }
     }
 
-    fun onFabClick(view: View) {
-        if (offlineRegion != null) {
+    private fun onFabClick(view: View) {
+        offlineRegion?.let {
             if (!isDownloading) {
                 // delete download
-                offlineRegion?.delete(offlineRegionDeleteCallback)
+                it.delete(offlineRegionDeleteCallback)
             } else {
                 // cancel download
                 val offlineDownload =
-                    offlinePlugin?.getActiveDownloadForOfflineRegion(offlineRegion)
+                    offlinePlugin?.getActiveDownloadForOfflineRegion(it)
                 if (offlineDownload != null) {
                     offlinePlugin?.cancelDownload(offlineDownload)
                     isDownloading = false
+                } else {
+                    it.delete(offlineRegionDeleteCallback)
                 }
             }
             view.visibility = View.GONE
@@ -197,7 +197,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
 
     override fun onError(offlineDownload: OfflineDownloadOptions, error: String, message: String) {
         binding.regionStateProgress.visibility = View.INVISIBLE
-        binding.regionState.text = "ERROR"
+        binding.regionState.text = STRING_ERROR
         Toast.makeText(this, error + message, Toast.LENGTH_LONG).show()
     }
 
@@ -252,8 +252,4 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
         mapView.onLowMemory()
     }
 
-    companion object {
-
-        val KEY_REGION_ID_BUNDLE = "com.mapbox.mapboxsdk.plugins.offline.bundle.id"
-    }
 }

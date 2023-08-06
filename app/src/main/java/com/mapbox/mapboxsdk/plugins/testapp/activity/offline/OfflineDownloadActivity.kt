@@ -28,7 +28,7 @@ class OfflineDownloadActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityOfflineDownloadBinding.inflate(layoutInflater)
-        setContentView(R.layout.activity_offline_download)
+        setContentView(binding.root)
         initUi()
         initSeekbarListeners()
         binding.fabStartDownload.setOnClickListener {
@@ -38,7 +38,7 @@ class OfflineDownloadActivity : AppCompatActivity() {
                 Toast.makeText(
                     this,
                     "Please make sure that the Max zoom value is larger" +
-                        " than the Min zoom level",
+                            " than the Min zoom level",
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -70,10 +70,10 @@ class OfflineDownloadActivity : AppCompatActivity() {
 
     private fun initSpinner() {
         val styles = ArrayList<String>()
+        styles.add(Style.getPredefinedStyle("Basic"))
         styles.add(Style.getPredefinedStyle("Streets"))
-        styles.add(Style.getPredefinedStyle("Dark"))
-        styles.add(Style.getPredefinedStyle("Light"))
-        styles.add(Style.getPredefinedStyle("Outdoors"))
+        styles.add(Style.getPredefinedStyle("Bright"))
+        styles.add(Style.getPredefinedStyle("Outdoor"))
         val spinnerArrayAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, styles)
         spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerStyleUrl.adapter = spinnerArrayAdapter
@@ -116,7 +116,7 @@ class OfflineDownloadActivity : AppCompatActivity() {
         })
     }
 
-    fun onDownloadRegion() {
+    private fun onDownloadRegion() {
         // get data from UI
         val regionName = binding.editTextRegionName.text.toString()
         val latitudeNorth = binding.editTextLatNorth.text.toString().toDouble()

@@ -14,9 +14,7 @@ class OfflineDownloadChangeDispatcher implements OfflineDownloadChangeListener {
     }
 
     void removeListener(OfflineDownloadChangeListener offlineDownloadChangeListener) {
-        if (changeListeners.contains(offlineDownloadChangeListener)) {
-            changeListeners.remove(offlineDownloadChangeListener);
-        }
+        changeListeners.remove(offlineDownloadChangeListener);
     }
 
     @Override

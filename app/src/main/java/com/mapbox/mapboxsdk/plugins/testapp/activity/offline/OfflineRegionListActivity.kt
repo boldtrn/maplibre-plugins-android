@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.plugins.testapp.activity.offline
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.InflateException
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +13,7 @@ import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition
 import com.mapbox.mapboxsdk.plugins.offline.utils.OfflineUtils
 import com.mapbox.mapboxsdk.plugins.testapp.R
+import com.mapbox.mapboxsdk.plugins.testapp.databinding.ActivityOfflineRegionListBinding
 import java.util.*
 
 /**
@@ -19,13 +21,15 @@ import java.util.*
  */
 class OfflineRegionListActivity : AppCompatActivity(), AdapterView.OnItemClickListener {
 
+    private lateinit var binding: ActivityOfflineRegionListBinding
     private lateinit var adapter: OfflineRegionAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_offline_region_list)
+        binding = ActivityOfflineRegionListBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val listView = findViewById<ListView>(R.id.listView)
+        val listView = binding.listView
         adapter = OfflineRegionAdapter()
         listView.adapter = adapter
         listView.emptyView = findViewById(android.R.id.empty)
@@ -35,7 +39,7 @@ class OfflineRegionListActivity : AppCompatActivity(), AdapterView.OnItemClickLi
     override fun onItemClick(parent: AdapterView<*>, view: View, position: Int, id: Long) {
         val region = adapter.getItem(position)
         val intent = Intent(this, OfflineRegionDetailActivity::class.java)
-        intent.putExtra(OfflineRegionDetailActivity.KEY_REGION_ID_BUNDLE, region.id)
+        intent.putExtra(KEY_REGION_ID_BUNDLE, region.id)
         startActivity(intent)
     }
 
@@ -111,7 +115,7 @@ class OfflineRegionListActivity : AppCompatActivity(), AdapterView.OnItemClickLi
             return convertView
         }
 
-        internal class ViewHolder {
+        class ViewHolder {
             var text: TextView? = null
             var subText: TextView? = null
         }

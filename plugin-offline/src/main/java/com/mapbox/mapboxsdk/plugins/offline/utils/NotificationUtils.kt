@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
+import android.net.wifi.p2p.WifiP2pManager.ChannelListener
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
@@ -14,20 +14,22 @@ import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.plugins.offline.R
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants
+import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 
-@JvmOverloads
 @RequiresApi(api = Build.VERSION_CODES.O)
 fun setupNotificationChannel(
-    channelName: String = "Offline",
-    channelLightColor: Int = Color.GREEN
+    config: OfflineServiceConfiguration?,
 ) {
     val manager = Mapbox.getApplicationContext()
         .getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     val channel = NotificationChannel(
         OfflineConstants.NOTIFICATION_CHANNEL,
-        channelName, NotificationManager.IMPORTANCE_DEFAULT
+        config?.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
     )
-    channel.lightColor = channelLightColor
+    config?.channelLightColor?.let {
+        channel.enableLights(true)
+        channel.lightColor = it
+    }
     channel.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
     manager.createNotificationChannel(channel)
 }
@@ -45,6 +47,7 @@ fun toNotificationBuilder(
         .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         .setSmallIcon(notificationOptions.smallIconRes)
         .setOnlyAlertOnce(true)
+        // Remember: Setting a group here does not have any effect without the .setGroupSummary(true) in the summary notification below
         .setGroup(OfflineConstants.NOTIFICATION_GROUP)
         .setContentIntent(contentIntent)
         .addAction(

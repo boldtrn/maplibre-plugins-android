@@ -26,6 +26,7 @@ import com.mapbox.mapboxsdk.plugins.testapp.R;
 import androidx.annotation.IdRes;
 import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -89,8 +90,8 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
     private void loadFeatures() {
         try {
             new LoadFeatureTask(this).execute(
-                getPackageManager().getPackageInfo(getPackageName(),
-                    PackageManager.GET_ACTIVITIES | PackageManager.GET_META_DATA));
+                    getPackageManager().getPackageInfo(getPackageName(),
+                            PackageManager.GET_ACTIVITIES | PackageManager.GET_META_DATA));
         } catch (PackageManager.NameNotFoundException exception) {
             Timber.e(exception, "Could not resolve package info");
         }
@@ -111,7 +112,7 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
 
         Section[] dummy = new Section[sections.size()];
         sectionAdapter = new FeatureSectionAdapter(
-            this, R.layout.section_feature, R.id.section_text, new FeatureAdapter(features));
+                this, R.layout.section_feature, R.id.section_text, new FeatureAdapter(features));
         sectionAdapter.setSections(sections.toArray(dummy));
         recyclerView.setAdapter(sectionAdapter);
     }
@@ -124,13 +125,14 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         permissionsManager.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override
     public void onExplanationNeeded(List<String> permissionsToExplain) {
         Toast.makeText(this, "This app needs location permissions in order to show its functionality.",
-            Toast.LENGTH_LONG).show();
+                Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -139,7 +141,7 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
             recyclerView.setEnabled(true);
         } else {
             Toast.makeText(this, "You didn't grant location permissions.",
-                Toast.LENGTH_LONG).show();
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -168,7 +170,7 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
                 String metaDataKey = context.getResources().getString(R.string.category);
                 for (ActivityInfo info : app.activities) {
                     if (info.labelRes != 0 && info.name.startsWith(packageName)
-                        && !info.name.equals(FeatureOverviewActivity.class.getName())) {
+                            && !info.name.equals(FeatureOverviewActivity.class.getName())) {
                         String label = context.getString(info.labelRes);
                         String description = resolveString(context, info.descriptionRes);
                         String category = resolveMetaData(info.metaData, metaDataKey);
@@ -298,11 +300,8 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
 
             ViewHolder(View view) {
                 super(view);
-                Typeface typeface = FontCache.get("Roboto-Regular.ttf", view.getContext());
                 labelView = view.findViewById(R.id.nameView);
-                labelView.setTypeface(typeface);
                 descriptionView = view.findViewById(R.id.descriptionView);
-                descriptionView.setTypeface(typeface);
             }
         }
 
@@ -326,24 +325,6 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
         @Override
         public int getItemCount() {
             return features.size();
-        }
-    }
-
-    private static class FontCache {
-
-        private static Hashtable<String, Typeface> fontCache = new Hashtable<>();
-
-        static Typeface get(String name, Context context) {
-            Typeface tf = fontCache.get(name);
-            if (tf == null) {
-                try {
-                    tf = Typeface.createFromAsset(context.getAssets(), name);
-                    fontCache.put(name, tf);
-                } catch (Exception exception) {
-                    Timber.e("Font not found");
-                }
-            }
-            return tf;
         }
     }
 
@@ -422,8 +403,8 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
         @Override
         public int getItemViewType(int position) {
             return isSectionHeaderPosition(position)
-                ? SECTION_TYPE
-                : adapter.getItemViewType(getConvertedPosition(position)) + 1;
+                    ? SECTION_TYPE
+                    : adapter.getItemViewType(getConvertedPosition(position)) + 1;
         }
 
         void setSections(Section[] sections) {
@@ -464,8 +445,8 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
         @Override
         public long getItemId(int position) {
             return isSectionHeaderPosition(position)
-                ? Integer.MAX_VALUE - sections.indexOfKey(position)
-                : adapter.getItemId(getConvertedPosition(position));
+                    ? Integer.MAX_VALUE - sections.indexOfKey(position)
+                    : adapter.getItemId(getConvertedPosition(position));
         }
 
         @Override
@@ -481,7 +462,6 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
         SectionViewHolder(@NonNull View view, @IdRes int textRes) {
             super(view);
             title = view.findViewById(textRes);
-            title.setTypeface(FontCache.get("Roboto-Medium.ttf", view.getContext()));
         }
     }
 
@@ -513,19 +493,19 @@ public class FeatureOverviewActivity extends AppCompatActivity implements Permis
             }
         };
         private RecyclerView.OnChildAttachStateChangeListener attachListener =
-            new RecyclerView.OnChildAttachStateChangeListener() {
-                @Override
-                public void onChildViewAttachedToWindow(View view) {
-                    if (onItemClickListener != null) {
-                        view.setOnClickListener(onClickListener);
+                new RecyclerView.OnChildAttachStateChangeListener() {
+                    @Override
+                    public void onChildViewAttachedToWindow(View view) {
+                        if (onItemClickListener != null) {
+                            view.setOnClickListener(onClickListener);
+                        }
                     }
-                }
 
-                @Override
-                public void onChildViewDetachedFromWindow(View view) {
+                    @Override
+                    public void onChildViewDetachedFromWindow(View view) {
 
-                }
-            };
+                    }
+                };
 
         private ItemClickSupport(RecyclerView recyclerView) {
             this.recyclerView = recyclerView;

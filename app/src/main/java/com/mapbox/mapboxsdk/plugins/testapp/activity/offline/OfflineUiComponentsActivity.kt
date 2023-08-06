@@ -15,14 +15,16 @@ import com.mapbox.mapboxsdk.plugins.testapp.R
 import com.mapbox.mapboxsdk.plugins.testapp.databinding.ActivityOfflineUiComponentsBinding
 import java.util.Locale
 
+private const val REQUEST_CODE = 9384
+
 class OfflineUiComponentsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityOfflineUiComponentsBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_offline_ui_components)
         binding = ActivityOfflineUiComponentsBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         binding.fabRegionSelector.setOnClickListener {
             onOfflineRegionSelectorButtonClicked()
         }
@@ -69,8 +71,4 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
         }
     }
 
-    companion object {
-
-        private val REQUEST_CODE = 9384
-    }
 }
