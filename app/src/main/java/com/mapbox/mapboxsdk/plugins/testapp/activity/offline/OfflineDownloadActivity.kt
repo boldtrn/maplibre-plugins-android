@@ -151,6 +151,7 @@ class OfflineDownloadActivity : AppCompatActivity() {
             .build()
 
         // start offline download
+        OfflinePlugin.initialize(this, channelName = "TestApp Offline Download")
         OfflinePlugin.getInstance(this).startDownload(
             OfflineDownloadOptions.builder()
                 .definition(definition)
