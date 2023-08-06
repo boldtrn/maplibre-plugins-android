@@ -1,5 +1,7 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline;
 
+import androidx.annotation.NonNull;
+
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
 
 import java.util.ArrayList;
@@ -54,7 +56,7 @@ class OfflineDownloadChangeDispatcher implements OfflineDownloadChangeListener {
     }
 
     @Override
-    public void onProgress(OfflineDownloadOptions offlineDownload, int progress) {
+    public void onProgress(@NonNull OfflineDownloadOptions offlineDownload, int progress) {
         if (!changeListeners.isEmpty()) {
             for (OfflineDownloadChangeListener changeListener : changeListeners) {
                 changeListener.onProgress(offlineDownload, progress);

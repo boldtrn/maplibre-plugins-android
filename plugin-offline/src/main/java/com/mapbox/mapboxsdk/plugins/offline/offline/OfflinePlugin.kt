@@ -68,7 +68,7 @@ private constructor(private val context: Context) {
      */
     fun getActiveDownloadForOfflineRegion(offlineRegion: OfflineRegion): OfflineDownloadOptions? {
         var offlineDownload: OfflineDownloadOptions? = null
-        if (!offlineDownloads.isEmpty()) {
+        if (offlineDownloads.isNotEmpty()) {
             for (download in offlineDownloads) {
                 if (download.uuid == offlineRegion.id) {
                     offlineDownload = download
@@ -82,7 +82,7 @@ private constructor(private val context: Context) {
      * Add a callback that is invoked when the offline download state changes.
      *
      *
-     * In normal cases this method will be invoked as part of [Activity.onStart]
+     * In normal cases this method will be invoked as part of [android.app.Activity.onStart]
      *
      *
      * @param listener the callback that will be invoked
@@ -96,7 +96,7 @@ private constructor(private val context: Context) {
      * remove a callback that is invoked when the offline download state changes.
      *
      *
-     * In normal cases this method will be invoked as part of [Activity.onStop]
+     * In normal cases this method will be invoked as part of [android.app.Activity.onStop]
      *
      *
      * @param listener the callback that will be removed
@@ -132,7 +132,7 @@ private constructor(private val context: Context) {
         } else {
             stateChangeDispatcher.onSuccess(offlineDownload)
         }
-        offlineDownloads.remove(offlineDownload)
+        removeDownloadFromList(offlineDownload)
     }
 
     /**
@@ -149,7 +149,11 @@ private constructor(private val context: Context) {
         errorMessage: String?
     ) {
         stateChangeDispatcher.onError(offlineDownload, error, errorMessage)
-        offlineDownloads.remove(offlineDownload)
+        removeDownloadFromList(offlineDownload)
+    }
+
+    private fun removeDownloadFromList(offlineDownload: OfflineDownloadOptions) {
+        offlineDownloads.removeAll { it.sufficientlyEquals(offlineDownload) }
     }
 
     /**
@@ -159,7 +163,7 @@ private constructor(private val context: Context) {
      * @param progress        the amount of progress
      * @since 0.1.0
      */
-    fun onProgressChanged(offlineDownload: OfflineDownloadOptions?, progress: Int) {
+    fun onProgressChanged(offlineDownload: OfflineDownloadOptions, progress: Int) {
         stateChangeDispatcher.onProgress(offlineDownload, progress)
     }
 

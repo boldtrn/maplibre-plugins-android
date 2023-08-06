@@ -1,24 +1,29 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline;
 
+import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
+
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import androidx.annotation.NonNull;
+
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
 
-import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
-
-import androidx.annotation.NonNull;
+import timber.log.Timber;
 
 public class OfflineDownloadStateReceiver extends BroadcastReceiver {
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(Context context, @NonNull Intent intent) {
         String actionName = intent.getStringExtra(OfflineConstants.KEY_STATE);
-        OfflineDownloadOptions offlineDownload = intent.getParcelableExtra(KEY_BUNDLE);
-
+        OfflineDownloadOptions offlineDownload = intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE);
         OfflinePlugin offlinePlugin = OfflinePlugin.getInstance(context);
+        if (actionName == null || offlineDownload == null) {
+            Timber.w("Invalid broadcast received: %s - %s", actionName, offlineDownload);
+            return;
+        }
 
         switch (actionName) {
             case OfflineConstants.STATE_STARTED:
@@ -34,14 +39,14 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
                 offlinePlugin.onProgressChanged(offlineDownload, progress);
                 break;
             default:
-                // removes the offline download (cancel or finish)
+                // removes the offline download (cancel or successful finish)
                 offlinePlugin.removeDownload(offlineDownload, actionName.equals(OfflineConstants.STATE_CANCEL));
                 break;
         }
     }
 
-    static void dispatchProgressChanged(Context context, OfflineDownloadOptions offlineDownload,
-            int percentage) {
+    static void dispatchProgressChanged(@NonNull Context context, OfflineDownloadOptions offlineDownload,
+                                        int percentage) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_PROGRESS);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -49,14 +54,14 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
         context.getApplicationContext().sendBroadcast(intent);
     }
 
-    static void dispatchStartBroadcast(Context context, OfflineDownloadOptions offlineDownload) {
+    static void dispatchStartBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_STARTED);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
         context.getApplicationContext().sendBroadcast(intent);
     }
 
-    static void dispatchSuccessBroadcast(Context context, OfflineDownloadOptions offlineDownload) {
+    static void dispatchSuccessBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_FINISHED);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -67,8 +72,8 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
         dispatchErrorBroadcast(context, offlineDownload, error, error);
     }
 
-    static void dispatchErrorBroadcast(Context context, OfflineDownloadOptions offlineDownload,
-            String error, String message) {
+    static void dispatchErrorBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload,
+                                       String error, String message) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_ERROR);
         intent.putExtra(KEY_BUNDLE, offlineDownload);

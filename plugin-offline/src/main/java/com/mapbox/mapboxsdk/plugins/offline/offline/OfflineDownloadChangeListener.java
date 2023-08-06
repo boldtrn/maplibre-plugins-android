@@ -1,5 +1,7 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline;
 
+import androidx.annotation.NonNull;
+
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
 
 public interface OfflineDownloadChangeListener {
@@ -12,6 +14,6 @@ public interface OfflineDownloadChangeListener {
 
     void onError(OfflineDownloadOptions offlineDownload, String error, String message);
 
-    void onProgress(OfflineDownloadOptions offlineDownload, int progress);
+    void onProgress(@NonNull OfflineDownloadOptions offlineDownload, int progress);
 
 }
