@@ -151,14 +151,14 @@ class OfflineDownloadActivity : AppCompatActivity() {
             .build()
 
         // start offline download
-        OfflinePlugin.initialize(this, channelName = "TestApp Offline Download")
-        OfflinePlugin.getInstance(this).startDownload(
-            OfflineDownloadOptions.builder()
-                .definition(definition)
-                .metadata(OfflineUtils.convertRegionName(regionName))
-                .notificationOptions(notificationOptions)
-                .build()
-        )
+        OfflinePlugin.getConfiguredInstance(this, channelName = "TestApp Offline Download")
+            .startDownload(
+                OfflineDownloadOptions.builder()
+                    .definition(definition)
+                    .metadata(OfflineUtils.convertRegionName(regionName))
+                    .notificationOptions(notificationOptions)
+                    .build()
+            )
     }
 
     private fun validCoordinates(
