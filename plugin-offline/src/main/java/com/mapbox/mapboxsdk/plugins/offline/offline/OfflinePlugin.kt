@@ -24,6 +24,12 @@ private constructor(private val context: Context) {
     private val stateChangeDispatcher = OfflineDownloadChangeDispatcher()
     private val offlineDownloads: MutableList<OfflineDownloadOptions> = ArrayList()
 
+    @Deprecated("Use proper method access", ReplaceWith("getActiveDownloads()"))
+    val activeDownloads: List<OfflineDownloadOptions>
+        get() {
+            return offlineDownloads
+        }
+
     /**
      * Returns an immutable list of the currently active offline downloads
      */
