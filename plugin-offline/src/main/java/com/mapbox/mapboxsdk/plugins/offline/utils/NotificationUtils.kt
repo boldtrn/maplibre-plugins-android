@@ -26,6 +26,9 @@ fun setupNotificationChannel(
         OfflineConstants.NOTIFICATION_CHANNEL,
         config?.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
     )
+    config?.channelDescription?.let {
+        channel.description = it
+    }
     config?.channelLightColor?.let {
         channel.enableLights(true)
         channel.lightColor = it

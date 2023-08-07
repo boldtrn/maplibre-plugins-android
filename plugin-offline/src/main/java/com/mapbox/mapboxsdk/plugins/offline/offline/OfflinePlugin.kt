@@ -206,7 +206,8 @@ private constructor(private val context: Context) {
         @JvmOverloads
         fun getConfiguredInstance(
             context: Context,
-            channelName: String?,
+            channelName: String? = null,
+            channelDescription: String? = null,
             useGrouping: Boolean = true
         ): OfflinePlugin {
             // This method may have many other effects in the future. Remember, the instance can
@@ -214,6 +215,7 @@ private constructor(private val context: Context) {
             OfflineDownloadService.config =
                 OfflineServiceConfiguration(
                     channelName = channelName,
+                    channelDescription = channelDescription,
                     useGrouping = useGrouping,
                 )
             return getInstance(context)

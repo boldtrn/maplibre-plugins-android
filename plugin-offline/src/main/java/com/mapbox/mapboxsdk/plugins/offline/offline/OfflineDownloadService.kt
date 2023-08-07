@@ -28,7 +28,8 @@ import com.mapbox.mapboxsdk.snapshotter.MapSnapshotter
 import timber.log.Timber
 
 data class OfflineServiceConfiguration(
-    val channelName: String?,
+    val channelName: String? = null,
+    val channelDescription: String? = null,
     val useGrouping: Boolean = false,
     val channelLightColor: Int? = null
 )
