@@ -153,7 +153,7 @@ private constructor(private val context: Context) {
     }
 
     private fun removeDownloadFromList(offlineDownload: OfflineDownloadOptions) {
-        offlineDownloads.removeAll { it.sufficientlyEquals(offlineDownload) }
+        offlineDownloads.removeAll { it.uuid === offlineDownload.uuid }
     }
 
     /**
