@@ -63,14 +63,6 @@ data class OfflineDownloadOptions(
         return uuid
     }
 
-    fun sufficientlyEquals(other: OfflineDownloadOptions): Boolean {
-        return equals(other) || (uuid == other.uuid &&
-                definition == other.definition &&
-                notificationOptions == other.notificationOptions &&
-                regionName == other.regionName &&
-                metadata.contentEquals(other.metadata))
-    }
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
