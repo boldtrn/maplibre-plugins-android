@@ -293,6 +293,10 @@ class OfflineDownloadService : Service() {
     fun progressDownload(offlineDownload: OfflineDownloadOptions, status: OfflineRegionStatus) {
         val percentage =
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
+        if (status.completedResourceCount > 0 && percentage <= (offlineDownload.progress + 1)) {
+            // Don't update the notification if there was no or only minimal progress change
+            return;
+        }
         offlineDownload.progress = percentage
         if (percentage % 2 == 0 && regionLongSparseArray[offlineDownload.uuid] != null) {
             // TODO Progess updates currently make the UI flicker, find out if this is the cause
