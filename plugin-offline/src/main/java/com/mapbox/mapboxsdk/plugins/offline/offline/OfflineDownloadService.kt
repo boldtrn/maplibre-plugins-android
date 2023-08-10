@@ -189,6 +189,9 @@ class OfflineDownloadService : Service() {
                     notificationBuilder!!.setLargeIcon(snapshot.bitmap)
                     Timber.d("Notifying manager for region")
                     notificationManager.notify(regionId, notificationBuilder!!.build())
+                    if (config?.useGrouping == true) {
+                        notificationManager.notify(0, makeSummaryNotification(this, options))
+                    }
                 }
             }
         }
@@ -295,7 +298,7 @@ class OfflineDownloadService : Service() {
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
         offlineDownload.progress = percentage
         if (percentage % 2 == 0 && regionLongSparseArray[offlineDownload.uuid] != null) {
-            // TODO Progess updates currently make the UI flicker, find out if this is the cause
+            // TODO Progress updates currently make the UI flicker, find out if this is the cause
             OfflineDownloadStateReceiver.dispatchProgressChanged(this, offlineDownload, percentage)
             notificationBuilder?.let {
                 it.setProgress(100, percentage, false)
@@ -308,6 +311,12 @@ class OfflineDownloadService : Service() {
                         offlineDownload.uuid.toInt(),
                         it.build()
                     )
+                    if (config?.useGrouping == true) {
+                        notificationManager.notify(
+                            0,
+                            makeSummaryNotification(this, offlineDownload)
+                        )
+                    }
                 }
             }
         }
