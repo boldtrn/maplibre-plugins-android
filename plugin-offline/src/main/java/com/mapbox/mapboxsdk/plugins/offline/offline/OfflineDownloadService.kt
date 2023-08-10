@@ -7,6 +7,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.collection.LongSparseArray
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -31,7 +33,8 @@ data class OfflineServiceConfiguration(
     val channelName: String? = null,
     val channelDescription: String? = null,
     val useGrouping: Boolean = false,
-    val channelLightColor: Int? = null
+    val channelLightColor: Int? = null,
+    val groupingContentTitle: CharSequence? = null
 )
 
 /**
@@ -153,6 +156,60 @@ class OfflineDownloadService : Service() {
 
     fun showNotification(options: OfflineDownloadOptions) {
         Timber.d("showNotification() called with: offlineDownload = [%s]", options)
+        // TODO request permission if not already given
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Timber.w("Notification permission not given")
+            return
+        }
+        val builder = ensureNotificationBuilder(options)
+
+        if (regionLongSparseArray.isEmpty) {
+            // TODO why is this here, this service is never started as a foregroundService
+            startForeground(options.uuid.toInt(), builder.build())
+        } else {
+            Timber.d("Notifying manager for offline download")
+            notificationManager.notify(options.uuid.toInt(), builder.build())
+            if (config?.useGrouping == true) {
+                notificationManager.notify(0, makeSummaryNotification(this, options, config))
+            }
+        }
+
+        // TODO why is this a separate if-case, can we merge this into the initial notification creation to save a notify
+        if (options.notificationOptions.requestMapSnapshot) {
+            // create map bitmap to show as notification icon
+            createMapSnapshot(
+                options.definition
+            ) { snapshot: MapSnapshot ->
+                amendNotificationWithSnapshot(options, builder, snapshot)
+            }
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    private fun amendNotificationWithSnapshot(
+        options: OfflineDownloadOptions,
+        builder: NotificationCompat.Builder,
+        snapshot: MapSnapshot
+    ) {
+        val regionId: Int = options.uuid.toInt()
+        if (regionLongSparseArray.get(regionId.toLong()) != null) {
+            builder.setLargeIcon(snapshot.bitmap)
+            Timber.d("Notifying manager for region")
+            notificationManager.notify(regionId, builder.build())
+            if (config?.useGrouping == true) {
+                notificationManager.notify(
+                    0,
+                    makeSummaryNotification(this, options, config)
+                )
+            }
+        }
+    }
+
+    private fun ensureNotificationBuilder(options: OfflineDownloadOptions): NotificationCompat.Builder {
         notificationBuilder = toNotificationBuilder(
             this,
             options,
@@ -162,39 +219,7 @@ class OfflineDownloadService : Service() {
             ),
             OfflineDownloadStateReceiver.createCancelIntent(applicationContext, options)
         )
-        if (regionLongSparseArray.isEmpty) {
-            // TODO why is this here, this service is never started as a foregroundService
-            startForeground(options.uuid.toInt(), notificationBuilder!!.build())
-        } else {
-            // TODO request permission if not already given
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                Timber.d("Notifying manager for offline download")
-                notificationManager.notify(options.uuid.toInt(), notificationBuilder!!.build())
-                if (config?.useGrouping == true) {
-                    notificationManager.notify(0, makeSummaryNotification(this, options))
-                }
-            }
-        }
-        if (options.notificationOptions.requestMapSnapshot) {
-            // create map bitmap to show as notification icon
-            createMapSnapshot(
-                options.definition
-            ) { snapshot: MapSnapshot ->
-                val regionId: Int = options.uuid.toInt()
-                if (regionLongSparseArray.get(regionId.toLong()) != null) {
-                    notificationBuilder!!.setLargeIcon(snapshot.bitmap)
-                    Timber.d("Notifying manager for region")
-                    notificationManager.notify(regionId, notificationBuilder!!.build())
-                    if (config?.useGrouping == true) {
-                        notificationManager.notify(0, makeSummaryNotification(this, options))
-                    }
-                }
-            }
-        }
+        return notificationBuilder!!
     }
 
     private fun createMapSnapshot(
@@ -314,7 +339,7 @@ class OfflineDownloadService : Service() {
                     if (config?.useGrouping == true) {
                         notificationManager.notify(
                             0,
-                            makeSummaryNotification(this, offlineDownload)
+                            makeSummaryNotification(this, offlineDownload, config)
                         )
                     }
                 }

@@ -65,7 +65,8 @@ fun toNotificationBuilder(
 
 fun makeSummaryNotification(
     context: Context?,
-    offlineDownload: OfflineDownloadOptions
+    offlineDownload: OfflineDownloadOptions,
+    config: OfflineServiceConfiguration?
 ): Notification {
     return NotificationCompat.Builder(context!!, OfflineConstants.NOTIFICATION_CHANNEL)
         .setContentTitle(offlineDownload.notificationOptions.contentTitle)
@@ -74,7 +75,7 @@ fun makeSummaryNotification(
         .setSmallIcon(offlineDownload.notificationOptions.smallIconRes)
         // Build summary info into InboxStyle template.
         .setStyle(
-            NotificationCompat.InboxStyle()
+            NotificationCompat.InboxStyle().setBigContentTitle(config?.groupingContentTitle)
         )
         // Specify which group this notification belongs to.
         .setGroup(OfflineConstants.NOTIFICATION_GROUP)
