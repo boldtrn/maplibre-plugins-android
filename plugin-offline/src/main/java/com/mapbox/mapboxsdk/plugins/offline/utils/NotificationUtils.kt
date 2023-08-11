@@ -6,11 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.wifi.p2p.WifiP2pManager.ChannelListener
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.plugins.offline.R
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants
@@ -18,10 +16,10 @@ import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 
 @RequiresApi(api = Build.VERSION_CODES.O)
 fun setupNotificationChannel(
+    context: Context,
     config: OfflineServiceConfiguration?,
 ) {
-    val manager = Mapbox.getApplicationContext()
-        .getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     val channel = NotificationChannel(
         OfflineConstants.NOTIFICATION_CHANNEL,
         config?.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT

@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
-import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.collection.LongSparseArray
 import androidx.core.app.ActivityCompat
@@ -66,7 +65,7 @@ class OfflineDownloadService : Service() {
         // Setup notification manager and channel
         notificationManager = NotificationManagerCompat.from(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setupNotificationChannel(config)
+            setupNotificationChannel(this, config)
         }
 
         // Register the broadcast receiver needed for updating APIs in the OfflinePlugin class.
