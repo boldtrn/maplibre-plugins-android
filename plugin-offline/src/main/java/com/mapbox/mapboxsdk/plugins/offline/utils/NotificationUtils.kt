@@ -6,11 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.wifi.p2p.WifiP2pManager.ChannelListener
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.plugins.offline.R
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants
@@ -18,18 +16,18 @@ import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 
 @RequiresApi(api = Build.VERSION_CODES.O)
 fun setupNotificationChannel(
-    config: OfflineServiceConfiguration?,
+    context: Context,
+    config: OfflineServiceConfiguration,
 ) {
-    val manager = Mapbox.getApplicationContext()
-        .getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     val channel = NotificationChannel(
         OfflineConstants.NOTIFICATION_CHANNEL,
-        config?.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
+        config.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
     )
-    config?.channelDescription?.let {
+    config.channelDescription?.let {
         channel.description = it
     }
-    config?.channelLightColor?.let {
+    config.channelLightColor?.let {
         channel.enableLights(true)
         channel.lightColor = it
     }
@@ -54,7 +52,7 @@ fun toNotificationBuilder(
         .setGroup(OfflineConstants.NOTIFICATION_GROUP)
         .setContentIntent(contentIntent)
         .addAction(
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) 0 else R.drawable.ic_cancel,
+            R.drawable.ic_cancel,
             notificationOptions.cancelText,
             PendingIntent.getService(
                 context, offlineDownloadOptions.uuid.toInt(), cancelIntent!!,
@@ -65,7 +63,8 @@ fun toNotificationBuilder(
 
 fun makeSummaryNotification(
     context: Context?,
-    offlineDownload: OfflineDownloadOptions
+    offlineDownload: OfflineDownloadOptions,
+    config: OfflineServiceConfiguration?
 ): Notification {
     return NotificationCompat.Builder(context!!, OfflineConstants.NOTIFICATION_CHANNEL)
         .setContentTitle(offlineDownload.notificationOptions.contentTitle)
@@ -74,7 +73,7 @@ fun makeSummaryNotification(
         .setSmallIcon(offlineDownload.notificationOptions.smallIconRes)
         // Build summary info into InboxStyle template.
         .setStyle(
-            NotificationCompat.InboxStyle()
+            NotificationCompat.InboxStyle().setBigContentTitle(config?.groupingContentTitle)
         )
         // Specify which group this notification belongs to.
         .setGroup(OfflineConstants.NOTIFICATION_GROUP)

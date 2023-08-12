@@ -63,6 +63,18 @@ data class OfflineDownloadOptions(
         return uuid
     }
 
+    /**
+     * Checks whether this instance is equal to the other instance in all regards except the mutable
+     * fields (currently: var progress).
+     */
+    fun sufficientlyEquals(other: OfflineDownloadOptions): Boolean {
+        return uuid == other.uuid &&
+                definition == other.definition &&
+                notificationOptions == other.notificationOptions &&
+                regionName == other.regionName &&
+                metadata.contentEquals(other.metadata)
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
