@@ -334,11 +334,10 @@ class OfflineDownloadService : Service() {
         // Android Notification Manager will punish us if we notify too often, so we do several safety check
         val uuid = offlineDownload.uuid
         if (
-            percentage > (offlineDownload.progress + 1) &&
-            percentage % 2 == 0 &&
+            percentage != offlineDownload.progress &&
+            percentage % 5 == 0 &&
             requestedRegions[uuid] != null 
         ) {
-            offlineDownload.progress = percentage
             Timber.v("Notifying progress change to percentage: %s", percentage)
             offlineDownload.progress = percentage
             // TODO Progess updates currently make the UI flicker, find out if this is the cause
