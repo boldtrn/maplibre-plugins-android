@@ -17,17 +17,17 @@ import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 @RequiresApi(api = Build.VERSION_CODES.O)
 fun setupNotificationChannel(
     context: Context,
-    config: OfflineServiceConfiguration?,
+    config: OfflineServiceConfiguration,
 ) {
     val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     val channel = NotificationChannel(
         OfflineConstants.NOTIFICATION_CHANNEL,
-        config?.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
+        config.channelName ?: "Offline", NotificationManager.IMPORTANCE_DEFAULT
     )
-    config?.channelDescription?.let {
+    config.channelDescription?.let {
         channel.description = it
     }
-    config?.channelLightColor?.let {
+    config.channelLightColor?.let {
         channel.enableLights(true)
         channel.lightColor = it
     }
@@ -52,7 +52,7 @@ fun toNotificationBuilder(
         .setGroup(OfflineConstants.NOTIFICATION_GROUP)
         .setContentIntent(contentIntent)
         .addAction(
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) 0 else R.drawable.ic_cancel,
+            R.drawable.ic_cancel,
             notificationOptions.cancelText,
             PendingIntent.getService(
                 context, offlineDownloadOptions.uuid.toInt(), cancelIntent!!,

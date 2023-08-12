@@ -14,7 +14,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mapbox.mapboxsdk.offline.OfflineManager
-import com.mapbox.mapboxsdk.offline.OfflineManager.Companion.getInstance
 import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition
 import com.mapbox.mapboxsdk.offline.OfflineRegionError
@@ -28,8 +27,16 @@ import com.mapbox.mapboxsdk.snapshotter.MapSnapshot
 import com.mapbox.mapboxsdk.snapshotter.MapSnapshotter
 import timber.log.Timber
 
+private const val NOTIFICATION_SUMMARY_ID = -1
+
+/**
+ * Package for all options that can be configured on an [OfflineDownloadService]. No field is
+ * mandatory and the service will choose sensible fallbacks where necessary. For instance: Channel
+ * name must have a fallback, otherwise we can't create a channel. This fallback is not localized,
+ * so implementors of this plugin are highly encouraged to add a proper channel name themselves
+ */
 data class OfflineServiceConfiguration(
-    val channelName: String? = null,
+    val channelName: String = "Offline",
     val channelDescription: String? = null,
     val useGrouping: Boolean = false,
     val channelLightColor: Int? = null,
@@ -37,16 +44,15 @@ data class OfflineServiceConfiguration(
 )
 
 /**
- * Internal usage only, use this service indirectly by using methods found in [OfflinePlugin]. When an offline
- * download is initiated for the first time using this plugin, this service is created, captures the
- * `StartCommand` and collects the [OfflineDownloadOptions] instance which holds all the download metadata
- * needed to perform the download.
+ * Internal usage only, use this service indirectly by using methods found in [OfflinePlugin]. When
+ * an offline download is initiated for the first time using this plugin, this service is created,
+ * captures the `StartCommand` and collects the [OfflineDownloadOptions] instance which holds all
+ * the download metadata needed to perform the download.
  *
- *
- * If another offline download is initiated through the [OfflinePlugin] while another download is currently in
- * process, this service will add it to the [OfflineManager] queue for downloading, downstream, this will execute
- * the region downloads asynchronously (although writing to the same file). Once all downloads have been completed, this
- * service is stopped and destroyed.
+ * If another offline download is initiated through the [OfflinePlugin] while another download is
+ * currently in process, this service will add it to the [OfflineManager] queue for downloading,
+ * downstream, this will execute the region downloads asynchronously (although writing to the same
+ * file). Once all downloads have been completed, this service is stopped and destroyed.
  *
  * @since 0.1.0
  */
@@ -58,7 +64,7 @@ class OfflineDownloadService : Service() {
 
     // map offline regions to requests, ids are received with onStartCommand, these match serviceId
     // in OfflineDownloadOptions
-    val regionLongSparseArray = LongSparseArray<OfflineRegion?>()
+    val requestedRegions = LongSparseArray<OfflineRegion?>()
     override fun onCreate() {
         super.onCreate()
         Timber.v("onCreate called")
@@ -84,28 +90,28 @@ class OfflineDownloadService : Service() {
      * intent and if found, the process of downloading the offline region carries on to the
      * [.onResolveCommand]. If the [OfflineDownloadOptions] fails to be
      * found inside the intent, the service is stopped (only if no other downloads are currently running) and throws a
-     * [NullPointerException].
-     *
+     * [IllegalArgumentException].
      *
      * {@inheritDoc}
      *
      * @since 0.1.0
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.v("onStartCommand called.")
-        if (intent != null) {
-            val offlineDownload =
-                intent.getParcelableExtra<OfflineDownloadOptions>(OfflineConstants.KEY_BUNDLE)
-            if (offlineDownload != null) {
-                onResolveCommand(intent.action, offlineDownload)
-            } else {
-                stopSelf(startId)
-                throw NullPointerException(
-                    "A DownloadOptions instance must be passed into the service to"
-                            + " begin downloading."
-                )
-            }
-        }
+        Timber.v("onStartCommand called with intent = %s", intent)
+        val offlineDownload =
+            requireNotNull(
+                intent?.getParcelableExtra<OfflineDownloadOptions>(OfflineConstants.KEY_BUNDLE)
+            ) { "DownloadOptions must be passed into the service for it to do any work" }
+
+        /*
+        This service is started as a foreground service, we need to call this method IMMEDIATELY.
+        Never put any hard work before this line of code and never delay calling it. The Android
+        system will crash the app after only a few seconds if this is not called
+         */
+        startForeground(
+            NOTIFICATION_SUMMARY_ID, makeSummaryNotification(this, offlineDownload, config)
+        )
+        onResolveCommand(intent!!.action, offlineDownload)
         return START_STICKY
     }
 
@@ -121,29 +127,34 @@ class OfflineDownloadService : Service() {
      * @since 0.1.0
      */
     private fun onResolveCommand(intentAction: String?, offlineDownload: OfflineDownloadOptions) {
-        if ((OfflineConstants.ACTION_START_DOWNLOAD == intentAction)) {
+        if (OfflineConstants.ACTION_START_DOWNLOAD == intentAction) {
             createDownload(offlineDownload)
-        } else if ((OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction)) {
+        } else if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
             cancelDownload(offlineDownload)
+        } else {
+            throw IllegalArgumentException("Invalid intent action $intentAction")
         }
     }
 
     private fun createDownload(offlineDownload: OfflineDownloadOptions) {
+        Timber.v("createDownload() called with: offlineDownload = %s", offlineDownload)
         val definition = offlineDownload.definition
         val metadata = offlineDownload.metadata
-        getInstance(applicationContext).createOfflineRegion(
+        OfflineManager.getInstance(applicationContext).createOfflineRegion(
             definition,
             metadata,
             object : OfflineManager.CreateOfflineRegionCallback {
                 override fun onCreate(offlineRegion: OfflineRegion) {
+                    Timber.v("onCreate with: offlineRegion = %s", offlineRegion)
                     val options = offlineDownload.copy(uuid = offlineRegion.id)
                     OfflineDownloadStateReceiver.dispatchStartBroadcast(applicationContext, options)
-                    regionLongSparseArray.put(options.uuid, offlineRegion)
+                    requestedRegions.put(options.uuid, offlineRegion)
                     launchDownload(options, offlineRegion)
                     showNotification(options)
                 }
 
                 override fun onError(error: String) {
+                    Timber.w("onError with error = %s", error)
                     OfflineDownloadStateReceiver.dispatchErrorBroadcast(
                         applicationContext,
                         offlineDownload,
@@ -166,15 +177,12 @@ class OfflineDownloadService : Service() {
         }
         val builder = ensureNotificationBuilder(options)
 
-        if (regionLongSparseArray.isEmpty) {
+        if (requestedRegions.isEmpty) {
             // TODO why is this here, this service is never started as a foregroundService
             startForeground(options.uuid.toInt(), builder.build())
         } else {
             Timber.d("Notifying manager for offline download")
             notificationManager.notify(options.uuid.toInt(), builder.build())
-            if (config?.useGrouping == true) {
-                notificationManager.notify(0, makeSummaryNotification(this, options, config))
-            }
         }
 
         // TODO why is this a separate if-case, can we merge this into the initial notification creation to save a notify
@@ -195,16 +203,10 @@ class OfflineDownloadService : Service() {
         snapshot: MapSnapshot
     ) {
         val regionId: Int = options.uuid.toInt()
-        if (regionLongSparseArray.get(regionId.toLong()) != null) {
+        if (requestedRegions.get(regionId.toLong()) != null) {
             builder.setLargeIcon(snapshot.bitmap)
             Timber.d("Notifying manager for region")
             notificationManager.notify(regionId, builder.build())
-            if (config?.useGrouping == true) {
-                notificationManager.notify(
-                    0,
-                    makeSummaryNotification(this, options, config)
-                )
-            }
         }
     }
 
@@ -237,7 +239,7 @@ class OfflineDownloadService : Service() {
 
     private fun cancelDownload(offlineDownload: OfflineDownloadOptions) {
         val serviceId = offlineDownload.uuid.toInt()
-        val offlineRegion = regionLongSparseArray[serviceId.toLong()]
+        val offlineRegion = requestedRegions[serviceId.toLong()]
         if (offlineRegion != null) {
             offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
             offlineRegion.setObserver(null)
@@ -265,14 +267,19 @@ class OfflineDownloadService : Service() {
         if (notificationBuilder != null) {
             notificationManager.cancel(regionId)
         }
-        regionLongSparseArray.remove(regionId.toLong())
-        if (regionLongSparseArray.size() == 0) {
+        requestedRegions.remove(regionId.toLong())
+        if (requestedRegions.size() == 0) {
             stopForeground(true)
         }
         stopSelf(regionId)
     }
 
     fun launchDownload(offlineDownload: OfflineDownloadOptions, offlineRegion: OfflineRegion) {
+        Timber.v(
+            "launchDownload with: offlineDownload = %s, offlineRegion = %s",
+            offlineDownload,
+            offlineRegion
+        )
         offlineRegion.setObserver(object : OfflineRegion.OfflineRegionObserver {
             override fun onStatusChanged(status: OfflineRegionStatus) {
                 if (status.isComplete) {
@@ -283,6 +290,7 @@ class OfflineDownloadService : Service() {
             }
 
             override fun onError(error: OfflineRegionError) {
+                Timber.w("onError with error = %s", error)
                 OfflineDownloadStateReceiver.dispatchErrorBroadcast(
                     applicationContext, offlineDownload,
                     error.reason, error.message
@@ -291,6 +299,7 @@ class OfflineDownloadService : Service() {
             }
 
             override fun mapboxTileCountLimitExceeded(limit: Long) {
+                Timber.w("mapboxTileCountLimitExceeded with limit = %s", limit)
                 OfflineDownloadStateReceiver.dispatchErrorBroadcast(
                     applicationContext, offlineDownload,
                     "Mapbox tile count limit exceeded:$limit"
@@ -317,11 +326,20 @@ class OfflineDownloadService : Service() {
         removeOfflineRegion(offlineDownload.uuid.toInt())
     }
 
+    private var lastKnownDownloadPercentages: LongSparseArray<Int> = LongSparseArray()
     fun progressDownload(offlineDownload: OfflineDownloadOptions, status: OfflineRegionStatus) {
         val percentage =
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
-        offlineDownload.progress = percentage
-        if (percentage % 2 == 0 && regionLongSparseArray[offlineDownload.uuid] != null) {
+        // Careful, DownloadManager alerts download progress extremely rapidly
+        // Android Notification Manager will punish us if we notify too often, so we do several safety check
+        val uuid = offlineDownload.uuid
+        if (percentage % 5 == 0 &&
+            requestedRegions[uuid] != null &&
+            lastKnownDownloadPercentages.get(uuid) != percentage
+        ) {
+            lastKnownDownloadPercentages.put(uuid, percentage)
+            offlineDownload.progress = percentage
+            Timber.v("Notifying progress change to percentage: %s", percentage)
             // TODO Progress updates currently make the UI flicker, find out if this is the cause
             OfflineDownloadStateReceiver.dispatchProgressChanged(this, offlineDownload, percentage)
             notificationBuilder?.let {
@@ -332,15 +350,9 @@ class OfflineDownloadService : Service() {
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
                     notificationManager.notify(
-                        offlineDownload.uuid.toInt(),
+                        uuid.toInt(),
                         it.build()
                     )
-                    if (config?.useGrouping == true) {
-                        notificationManager.notify(
-                            0,
-                            makeSummaryNotification(this, offlineDownload, config)
-                        )
-                    }
                 }
             }
         }
@@ -367,9 +379,10 @@ class OfflineDownloadService : Service() {
 
         /**
          * Static configuration which is valid for all download services that are created during the
-         * lifetime of the app.
+         * lifetime of the app. Initialized with an empty default containing reasonable fallbacks
+         * where necessary.
          */
         @JvmStatic
-        var config: OfflineServiceConfiguration? = null
+        var config: OfflineServiceConfiguration = OfflineServiceConfiguration()
     }
 }

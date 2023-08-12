@@ -3,7 +3,9 @@ package com.mapbox.mapboxsdk.plugins.offline.offline
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.mapbox.mapboxsdk.offline.OfflineRegion
+import com.mapbox.mapboxsdk.plugins.offline.BuildConfig
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 
 /**
@@ -43,7 +45,7 @@ private constructor(private val context: Context) {
         val intent = Intent(context, OfflineDownloadService::class.java)
         intent.setAction(OfflineConstants.ACTION_START_DOWNLOAD)
         intent.putExtra(OfflineConstants.KEY_BUNDLE, options)
-        context.startService(intent)
+        startServiceCompat(intent)
     }
 
     /**
@@ -57,6 +59,14 @@ private constructor(private val context: Context) {
         intent.setAction(OfflineConstants.ACTION_CANCEL_DOWNLOAD)
         intent.putExtra(OfflineConstants.KEY_BUNDLE, offlineDownload)
         context.startService(intent)
+    }
+
+    private fun startServiceCompat(intent: Intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
     }
 
     /**
@@ -206,12 +216,20 @@ private constructor(private val context: Context) {
         ): OfflinePlugin {
             // This method may have many other effects in the future. Remember, the instance can
             // also be accessed and set here, e.g.: `getInstance(context).myField = myValue`
-            OfflineDownloadService.config =
+            val config = if (channelName.isNullOrBlank()) {
+                // Don't overwrite default
+                OfflineServiceConfiguration(
+                    channelDescription = channelDescription,
+                    useGrouping = useGrouping,
+                )
+            } else {
                 OfflineServiceConfiguration(
                     channelName = channelName,
                     channelDescription = channelDescription,
                     useGrouping = useGrouping,
                 )
+            }
+            OfflineDownloadService.config = config
             return getInstance(context)
         }
     }
