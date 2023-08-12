@@ -326,21 +326,22 @@ class OfflineDownloadService : Service() {
         removeOfflineRegion(offlineDownload.uuid.toInt())
     }
 
-    private var lastKnownDownloadPercentages: LongSparseArray<Int> = LongSparseArray()
     fun progressDownload(offlineDownload: OfflineDownloadOptions, status: OfflineRegionStatus) {
         val percentage =
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
+
         // Careful, DownloadManager alerts download progress extremely rapidly
         // Android Notification Manager will punish us if we notify too often, so we do several safety check
         val uuid = offlineDownload.uuid
-        if (percentage % 5 == 0 &&
-            requestedRegions[uuid] != null &&
-            lastKnownDownloadPercentages.get(uuid) != percentage
+        if (
+            percentage > (offlineDownload.progress + 1) &&
+            percentage % 2 == 0 &&
+            requestedRegions[uuid] != null 
         ) {
-            lastKnownDownloadPercentages.put(uuid, percentage)
             offlineDownload.progress = percentage
             Timber.v("Notifying progress change to percentage: %s", percentage)
-            // TODO Progress updates currently make the UI flicker, find out if this is the cause
+            offlineDownload.progress = percentage
+            // TODO Progess updates currently make the UI flicker, find out if this is the cause
             OfflineDownloadStateReceiver.dispatchProgressChanged(this, offlineDownload, percentage)
             notificationBuilder?.let {
                 it.setProgress(100, percentage, false)

@@ -163,7 +163,8 @@ private constructor(private val context: Context) {
     }
 
     private fun removeDownloadFromList(offlineDownload: OfflineDownloadOptions) {
-        offlineDownloads.removeAll { it.sufficientlyEquals(offlineDownload) }
+        // We only compare uuid, as these are randomly generated when creating the OfflineDownloadOptions, so it's independent from other changes
+        offlineDownloads.removeAll { it.uuid == offlineDownload.uuid }
     }
 
     /**
