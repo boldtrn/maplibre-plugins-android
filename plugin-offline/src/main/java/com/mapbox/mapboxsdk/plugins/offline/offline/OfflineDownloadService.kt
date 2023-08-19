@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
-import androidx.annotation.RequiresPermission
 import androidx.collection.LongSparseArray
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -15,19 +14,14 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mapbox.mapboxsdk.offline.OfflineManager
 import com.mapbox.mapboxsdk.offline.OfflineRegion
-import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition
 import com.mapbox.mapboxsdk.offline.OfflineRegionError
 import com.mapbox.mapboxsdk.offline.OfflineRegionStatus
-import com.mapbox.mapboxsdk.plugins.offline.R
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
-import com.mapbox.mapboxsdk.plugins.offline.utils.makeSummaryNotification
 import com.mapbox.mapboxsdk.plugins.offline.utils.setupNotificationChannel
 import com.mapbox.mapboxsdk.plugins.offline.utils.toNotificationBuilder
-import com.mapbox.mapboxsdk.snapshotter.MapSnapshot
-import com.mapbox.mapboxsdk.snapshotter.MapSnapshotter
 import timber.log.Timber
 
-private const val NOTIFICATION_SUMMARY_ID = -1
+private const val NOTIFICATION_FOREGROUND_ID = 1
 
 /**
  * Package for all options that can be configured on an [OfflineDownloadService]. No field is
@@ -38,9 +32,7 @@ private const val NOTIFICATION_SUMMARY_ID = -1
 data class OfflineServiceConfiguration(
     val channelName: String = "Offline",
     val channelDescription: String? = null,
-    val useGrouping: Boolean = false,
     val channelLightColor: Int? = null,
-    val groupingContentTitle: CharSequence? = null
 )
 
 /**
@@ -58,16 +50,17 @@ data class OfflineServiceConfiguration(
  */
 class OfflineDownloadService : Service() {
     private lateinit var notificationManager: NotificationManagerCompat
-    private var notificationBuilder: NotificationCompat.Builder? = null
-    private var mapSnapshotter: MapSnapshotter? = null
+    private lateinit var builder: NotificationCompat.Builder
     private var broadcastReceiver: OfflineDownloadStateReceiver? = null
 
     // map offline regions to requests, ids are received with onStartCommand, these match serviceId
     // in OfflineDownloadOptions
-    val requestedRegions = LongSparseArray<OfflineRegion?>()
+    private val requestedRegions = LongSparseArray<OfflineRegion>()
+    private val regionDownloads = LongSparseArray<OfflineDownloadOptions>()
+
     override fun onCreate() {
         super.onCreate()
-        Timber.v("onCreate called")
+        Timber.v("onCreate called with config = {%s}", config)
         // Setup notification manager and channel
         notificationManager = NotificationManagerCompat.from(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -76,11 +69,10 @@ class OfflineDownloadService : Service() {
 
         // Register the broadcast receiver needed for updating APIs in the OfflinePlugin class.
         broadcastReceiver = OfflineDownloadStateReceiver()
-        val filter = IntentFilter(OfflineConstants.ACTION_OFFLINE)
         ContextCompat.registerReceiver(
             this,
             broadcastReceiver,
-            filter,
+            IntentFilter(OfflineConstants.ACTION_OFFLINE),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
     }
@@ -98,21 +90,33 @@ class OfflineDownloadService : Service() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Timber.v("onStartCommand called with intent = %s", intent)
-        val offlineDownload =
-            requireNotNull(
-                intent?.getParcelableExtra<OfflineDownloadOptions>(OfflineConstants.KEY_BUNDLE)
-            ) { "DownloadOptions must be passed into the service for it to do any work" }
-
+        // Android does not mark this as non-null yet, but we require non-null intent to start work
+        requireNotNull(intent)
+        val downloadOptions: OfflineDownloadOptions = requireNotNull(
+            intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)
+        ) { "DownloadOptions must be passed into the service for it to do any work" }
+        updateNotificationBuilder(downloadOptions)
         /*
         This service is started as a foreground service, we need to call this method IMMEDIATELY.
         Never put any hard work before this line of code and never delay calling it. The Android
         system will crash the app after only a few seconds if this is not called
          */
-        startForeground(
-            NOTIFICATION_SUMMARY_ID, makeSummaryNotification(this, offlineDownload, config)
-        )
-        onResolveCommand(intent!!.action, offlineDownload)
+        startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
+        onResolveCommand(intent.action, downloadOptions)
         return START_STICKY
+    }
+
+    private fun updateNotificationBuilder(downloadOptions: OfflineDownloadOptions) {
+        // TODO store the builder variables and check if they need an update instead of creating new here every time
+        builder = toNotificationBuilder(
+            this,
+            OfflineDownloadStateReceiver.createNotificationIntent(
+                applicationContext,
+                downloadOptions
+            ),
+            OfflineDownloadStateReceiver.createCancelIntent(applicationContext, downloadOptions),
+            downloadOptions.notificationOptions
+        )
     }
 
     /**
@@ -126,11 +130,11 @@ class OfflineDownloadService : Service() {
      * correct region.
      * @since 0.1.0
      */
-    private fun onResolveCommand(intentAction: String?, offlineDownload: OfflineDownloadOptions) {
+    private fun onResolveCommand(intentAction: String?, downloadOptions: OfflineDownloadOptions) {
         if (OfflineConstants.ACTION_START_DOWNLOAD == intentAction) {
-            createDownload(offlineDownload)
+            createDownload(downloadOptions)
         } else if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
-            cancelDownload(offlineDownload)
+            cancelDownloads()
         } else {
             throw IllegalArgumentException("Invalid intent action $intentAction")
         }
@@ -138,19 +142,18 @@ class OfflineDownloadService : Service() {
 
     private fun createDownload(offlineDownload: OfflineDownloadOptions) {
         Timber.v("createDownload() called with: offlineDownload = %s", offlineDownload)
-        val definition = offlineDownload.definition
-        val metadata = offlineDownload.metadata
         OfflineManager.getInstance(applicationContext).createOfflineRegion(
-            definition,
-            metadata,
+            offlineDownload.definition,
+            offlineDownload.metadata,
             object : OfflineManager.CreateOfflineRegionCallback {
                 override fun onCreate(offlineRegion: OfflineRegion) {
                     Timber.v("onCreate with: offlineRegion = %s", offlineRegion)
+                    // TODO until this point, the offlineDownload.id is completely invalid, can we make it lateinit?
                     val options = offlineDownload.copy(uuid = offlineRegion.id)
                     OfflineDownloadStateReceiver.dispatchStartBroadcast(applicationContext, options)
                     requestedRegions.put(options.uuid, offlineRegion)
                     launchDownload(options, offlineRegion)
-                    showNotification(options)
+                    updateNotification(options)
                 }
 
                 override fun onError(error: String) {
@@ -164,8 +167,12 @@ class OfflineDownloadService : Service() {
             })
     }
 
-    fun showNotification(options: OfflineDownloadOptions) {
-        Timber.d("showNotification() called with: offlineDownload = [%s]", options)
+    fun updateNotification(options: OfflineDownloadOptions) {
+        Timber.d(
+            "showNotification() called with: offlineDownload = [%s], requestedRegions = %s",
+            options,
+            requestedRegions
+        )
         // TODO request permission if not already given
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -175,111 +182,74 @@ class OfflineDownloadService : Service() {
             Timber.w("Notification permission not given")
             return
         }
-        val builder = ensureNotificationBuilder(options)
 
-        if (requestedRegions.isEmpty) {
-            // TODO why is this here, this service is never started as a foregroundService
-            startForeground(options.uuid.toInt(), builder.build())
-        } else {
-            Timber.d("Notifying manager for offline download")
-            notificationManager.notify(options.uuid.toInt(), builder.build())
-        }
-
-        // TODO why is this a separate if-case, can we merge this into the initial notification creation to save a notify
-        if (options.notificationOptions.requestMapSnapshot) {
-            // create map bitmap to show as notification icon
-            createMapSnapshot(
-                options.definition
-            ) { snapshot: MapSnapshot ->
-                amendNotificationWithSnapshot(options, builder, snapshot)
-            }
-        }
-    }
-
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private fun amendNotificationWithSnapshot(
-        options: OfflineDownloadOptions,
-        builder: NotificationCompat.Builder,
-        snapshot: MapSnapshot
-    ) {
-        val regionId: Int = options.uuid.toInt()
-        if (requestedRegions.get(regionId.toLong()) != null) {
-            builder.setLargeIcon(snapshot.bitmap)
-            Timber.d("Notifying manager for region")
-            notificationManager.notify(regionId, builder.build())
-        }
-    }
-
-    private fun ensureNotificationBuilder(options: OfflineDownloadOptions): NotificationCompat.Builder {
-        notificationBuilder = toNotificationBuilder(
-            this,
-            options,
-            OfflineDownloadStateReceiver.createNotificationIntent(
-                applicationContext,
-                options
-            ),
-            OfflineDownloadStateReceiver.createCancelIntent(applicationContext, options)
+        Timber.d("Notifying manager for offline download")
+        notificationManager.notify(
+            NOTIFICATION_FOREGROUND_ID,
+            builder.setContentText(
+                resources.getQuantityString(
+                    options.notificationOptions.remainingTextRes,
+                    requestedRegions.size(),
+                    requestedRegions.size()
+                )
+            ).build()
         )
-        return notificationBuilder!!
+
     }
 
-    private fun createMapSnapshot(
-        definition: OfflineRegionDefinition,
-        callback: MapSnapshotter.SnapshotReadyCallback
-    ) {
-        val resources = resources
-        val height = resources.getDimension(R.dimen.notification_large_icon_height).toInt()
-        val width = resources.getDimension(R.dimen.notification_large_icon_width).toInt()
-        val options = MapSnapshotter.Options(width, height)
-        options.withStyle(definition.styleURL)
-        options.withRegion(definition.bounds)
-        mapSnapshotter = MapSnapshotter(this, options)
-        mapSnapshotter!!.start(callback)
-    }
-
-    private fun cancelDownload(offlineDownload: OfflineDownloadOptions) {
-        val serviceId = offlineDownload.uuid.toInt()
-        val offlineRegion = requestedRegions[serviceId.toLong()]
-        if (offlineRegion != null) {
-            offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
-            offlineRegion.setObserver(null)
-            offlineRegion.delete(object : OfflineRegion.OfflineRegionDeleteCallback {
-                override fun onDelete() {
-                    Timber.v("Offline region {%s} deleted", offlineRegion.id)
-                }
-
-                override fun onError(error: String) {
-                    Timber.w("Offline region {%s} deletion error: %s", offlineRegion.id, error)
-                    OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                        applicationContext,
-                        offlineDownload,
-                        error
-                    )
-                }
-            })
+    private fun cancelDownloads() {
+        // Careful, the array is manipulated during this operation, iterate backwards to preserve indexing
+        for (index in requestedRegions.size() - 1 downTo 0) {
+            cancelDownload(requestedRegions.valueAt(index))
         }
-        OfflineDownloadStateReceiver.dispatchCancelBroadcast(applicationContext, offlineDownload)
-        removeOfflineRegion(serviceId)
+    }
+
+    private fun cancelDownload(offlineRegion: OfflineRegion) {
+        val downloadOptions = regionDownloads[offlineRegion.id]
+        offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
+        offlineRegion.setObserver(null)
+        offlineRegion.delete(object : OfflineRegion.OfflineRegionDeleteCallback {
+            override fun onDelete() {
+                Timber.v("Offline region {%s} deleted", offlineRegion.id)
+            }
+
+            override fun onError(error: String) {
+                Timber.w("Offline region {%s} deletion error: %s", offlineRegion.id, error)
+                OfflineDownloadStateReceiver.dispatchErrorBroadcast(
+                    applicationContext,
+                    downloadOptions,
+                    error
+                )
+            }
+        })
+        OfflineDownloadStateReceiver.dispatchCancelBroadcast(applicationContext, downloadOptions)
+        removeOfflineRegion(offlineRegion.id)
     }
 
     @Synchronized
-    private fun removeOfflineRegion(regionId: Int) {
-        if (notificationBuilder != null) {
-            notificationManager.cancel(regionId)
-        }
-        requestedRegions.remove(regionId.toLong())
+    private fun removeOfflineRegion(regionId: Long) {
+        requestedRegions.remove(regionId)
         if (requestedRegions.size() == 0) {
+            // The current "batch / phase" off downloads is done, inform the user
+
+            // Clear download progress of all items, so that future additions don't have remaining 100% models here
+            regionDownloads.clear()
             stopForeground(true)
         }
-        stopSelf(regionId)
+        stopSelf(regionId.toInt())
     }
 
-    fun launchDownload(offlineDownload: OfflineDownloadOptions, offlineRegion: OfflineRegion) {
+    private fun launchDownload(
+        offlineDownload: OfflineDownloadOptions,
+        offlineRegion: OfflineRegion
+    ) {
         Timber.v(
             "launchDownload with: offlineDownload = %s, offlineRegion = %s",
             offlineDownload,
             offlineRegion
         )
+        // Send a one-shot fake progress update to initialise the progress bar in the notification in case this was the first download
+        updateNotificationProgressDownload(offlineDownload)
         offlineRegion.setObserver(object : OfflineRegion.OfflineRegionObserver {
             override fun onStatusChanged(status: OfflineRegionStatus) {
                 if (status.isComplete) {
@@ -323,44 +293,62 @@ class OfflineDownloadService : Service() {
         OfflineDownloadStateReceiver.dispatchSuccessBroadcast(this, offlineDownload)
         offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
         offlineRegion.setObserver(null)
-        removeOfflineRegion(offlineDownload.uuid.toInt())
+        removeOfflineRegion(offlineDownload.uuid)
     }
 
-    fun progressDownload(offlineDownload: OfflineDownloadOptions, status: OfflineRegionStatus) {
-        val percentage =
+    private fun progressDownload(
+        downloadOptions: OfflineDownloadOptions,
+        status: OfflineRegionStatus
+    ) {
+        val regionPercentage =
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
+        val uuid = downloadOptions.uuid
 
         // Careful, DownloadManager alerts download progress extremely rapidly
         // Android Notification Manager will punish us if we notify too often, so we do several safety check
-        val uuid = offlineDownload.uuid
         if (
-            percentage != offlineDownload.progress &&
-            percentage % 5 == 0 &&
-            requestedRegions[uuid] != null 
+            regionPercentage != downloadOptions.progress &&
+            regionPercentage % 5 == 0 &&
+            requestedRegions[uuid] != null
         ) {
-            Timber.v("Notifying progress change to percentage: %s", percentage)
-            offlineDownload.progress = percentage
-            // TODO Progess updates currently make the UI flicker, find out if this is the cause
-            OfflineDownloadStateReceiver.dispatchProgressChanged(this, offlineDownload, percentage)
-            notificationBuilder?.let {
-                it.setProgress(100, percentage, false)
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationManager.notify(
-                        uuid.toInt(),
-                        it.build()
-                    )
-                }
-            }
+            // Store the progress in the model, so that it can be accessed later
+            downloadOptions.progress = regionPercentage
+            OfflineDownloadStateReceiver.dispatchProgressChanged(
+                this,
+                downloadOptions,
+                regionPercentage
+            )
+            regionDownloads.put(uuid, downloadOptions)
+            updateNotificationProgressDownload(downloadOptions)
         }
+    }
+
+    private fun updateNotificationProgressDownload(
+        downloadOptions: OfflineDownloadOptions,
+    ) {
+        val totalPercentage = calculateTotalDownloadPercentage()
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            // Careful, we have to re-notify the summary each time we update, might have been swiped away
+            Timber.v("Notifying progress change to percentage: %s", totalPercentage)
+            builder.setProgress(100, downloadOptions.progress, false)
+            notificationManager.notify(NOTIFICATION_FOREGROUND_ID, builder.build())
+        }
+    }
+
+    private fun calculateTotalDownloadPercentage(): Int {
+        var total = 0
+        for (index in 0 until regionDownloads.size()) {
+            total += regionDownloads.valueAt(index).progress
+        }
+        return total / requestedRegions.size()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        mapSnapshotter?.cancel()
         if (broadcastReceiver != null) {
             try {
                 unregisterReceiver(broadcastReceiver)

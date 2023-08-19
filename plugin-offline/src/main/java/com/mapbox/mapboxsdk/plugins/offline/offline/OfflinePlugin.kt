@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.mapbox.mapboxsdk.offline.OfflineRegion
-import com.mapbox.mapboxsdk.plugins.offline.BuildConfig
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 
 /**
@@ -213,7 +212,6 @@ private constructor(private val context: Context) {
             context: Context,
             channelName: String? = null,
             channelDescription: String? = null,
-            useGrouping: Boolean = true
         ): OfflinePlugin {
             // This method may have many other effects in the future. Remember, the instance can
             // also be accessed and set here, e.g.: `getInstance(context).myField = myValue`
@@ -221,13 +219,11 @@ private constructor(private val context: Context) {
                 // Don't overwrite default
                 OfflineServiceConfiguration(
                     channelDescription = channelDescription,
-                    useGrouping = useGrouping,
                 )
             } else {
                 OfflineServiceConfiguration(
                     channelName = channelName,
                     channelDescription = channelDescription,
-                    useGrouping = useGrouping,
                 )
             }
             OfflineDownloadService.config = config

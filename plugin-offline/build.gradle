@@ -5,6 +5,7 @@ plugins {
 }
 
 android {
+    namespace 'com.mapbox.mapboxsdk.plugins.offline'
     compileSdkVersion androidVersions.compileSdkVersion
 
     defaultConfig {

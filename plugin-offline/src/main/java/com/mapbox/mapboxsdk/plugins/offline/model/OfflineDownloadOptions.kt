@@ -3,7 +3,8 @@ package com.mapbox.mapboxsdk.plugins.offline.model
 import android.os.Parcelable
 import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition
 import kotlinx.parcelize.Parcelize
-import java.util.UUID
+
+private const val INVALID_ID = -1L
 
 @Parcelize
 data class OfflineDownloadOptions(
@@ -12,7 +13,7 @@ data class OfflineDownloadOptions(
     val regionName: String,
     val metadata: ByteArray = byteArrayOf(),
     var progress: Int = 0,
-    val uuid: Long = UUID.randomUUID().mostSignificantBits
+    var uuid: Long = INVALID_ID
 ) : Parcelable {
 
     @Deprecated(
@@ -121,7 +122,7 @@ data class OfflineDownloadOptions(
         private var regionName: String = ""
         private var metadata: ByteArray = byteArrayOf()
         private var progress: Int = 0
-        private var uuid: Long = UUID.randomUUID().mostSignificantBits
+        private var uuid: Long = INVALID_ID
 
         @Deprecated(
             "Use idiomatic Kotlin constructor with named properties",

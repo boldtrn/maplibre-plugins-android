@@ -46,7 +46,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchProgressChanged(@NonNull Context context, OfflineDownloadOptions offlineDownload,
-                                        int percentage) {
+            int percentage) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_PROGRESS);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -73,7 +73,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchErrorBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload,
-                                       String error, String message) {
+            String error, String message) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_ERROR);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -90,17 +90,17 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     @NonNull
-    static Intent createCancelIntent(Context context, OfflineDownloadOptions offlineDownload) {
+    static Intent createCancelIntent(@NonNull Context context, @NonNull OfflineDownloadOptions downloadOptions) {
         Intent cancelIntent = new Intent(context, OfflineDownloadService.class);
-        cancelIntent.putExtra(KEY_BUNDLE, offlineDownload);
+        cancelIntent.putExtra(KEY_BUNDLE, downloadOptions);
         cancelIntent.setAction(OfflineConstants.ACTION_CANCEL_DOWNLOAD);
         return cancelIntent;
     }
 
-    static PendingIntent createNotificationIntent(Context context, @NonNull OfflineDownloadOptions offlineDownload) {
-        Class<?> returnActivity = offlineDownload.getNotificationOptions().getReturnActivityClass();
+    static PendingIntent createNotificationIntent(Context context, @NonNull OfflineDownloadOptions downloadOptions) {
+        Class<?> returnActivity = downloadOptions.getNotificationOptions().getReturnActivityClass();
         Intent notificationIntent = new Intent(context, returnActivity);
-        notificationIntent.putExtra(KEY_BUNDLE, offlineDownload);
+        notificationIntent.putExtra(KEY_BUNDLE, downloadOptions);
         return PendingIntent.getActivity(
                 context,
                 0,
