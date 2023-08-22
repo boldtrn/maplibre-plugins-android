@@ -3,14 +3,14 @@ package com.mapbox.mapboxsdk.plugins.offline.model
 import android.content.Context
 import android.os.Parcelable
 import androidx.annotation.DrawableRes
-import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import com.mapbox.mapboxsdk.plugins.offline.R
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class NotificationOptions(
     @DrawableRes val smallIconRes: Int = android.R.drawable.stat_sys_download,
-    @PluralsRes val remainingTextRes: Int = R.plurals.mapbox_offline_notification_remaining,
+    @StringRes val remainingTextRes: Int = R.string.mapbox_offline_notification_remaining,
     val returnActivity: String,
     val contentTitle: String,
     val contentText: String,

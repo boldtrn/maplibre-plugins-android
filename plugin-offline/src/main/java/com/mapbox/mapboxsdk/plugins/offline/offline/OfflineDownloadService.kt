@@ -16,6 +16,7 @@ import com.mapbox.mapboxsdk.offline.OfflineManager
 import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.offline.OfflineRegionError
 import com.mapbox.mapboxsdk.offline.OfflineRegionStatus
+import com.mapbox.mapboxsdk.plugins.offline.model.NotificationOptions
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.utils.setupNotificationChannel
 import com.mapbox.mapboxsdk.plugins.offline.utils.toNotificationBuilder
@@ -91,7 +92,9 @@ class OfflineDownloadService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Timber.v("onStartCommand called with intent = %s", intent)
         // Android does not mark this as non-null yet, but we require non-null intent to start work
-        requireNotNull(intent)
+        if (intent == null) {
+            return START_REDELIVER_INTENT
+        }
         val downloadOptions: OfflineDownloadOptions = requireNotNull(
             intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)
         ) { "DownloadOptions must be passed into the service for it to do any work" }
@@ -106,17 +109,16 @@ class OfflineDownloadService : Service() {
         return START_STICKY
     }
 
+    private var lastKnownNotificationOptions: NotificationOptions? = null
+
     private fun updateNotificationBuilder(downloadOptions: OfflineDownloadOptions) {
-        // TODO store the builder variables and check if they need an update instead of creating new here every time
-        builder = toNotificationBuilder(
-            this,
-            OfflineDownloadStateReceiver.createNotificationIntent(
-                applicationContext,
-                downloadOptions
-            ),
-            OfflineDownloadStateReceiver.createCancelIntent(applicationContext, downloadOptions),
-            downloadOptions.notificationOptions
-        )
+        if (lastKnownNotificationOptions != downloadOptions.notificationOptions) {
+            lastKnownNotificationOptions = downloadOptions.notificationOptions
+            builder = toNotificationBuilder(
+                context = this,
+                downloadOptions = downloadOptions
+            )
+        }
     }
 
     /**
@@ -153,7 +155,6 @@ class OfflineDownloadService : Service() {
                     OfflineDownloadStateReceiver.dispatchStartBroadcast(applicationContext, options)
                     requestedRegions.put(options.uuid, offlineRegion)
                     launchDownload(options, offlineRegion)
-                    updateNotification(options)
                 }
 
                 override fun onError(error: String) {
@@ -165,36 +166,6 @@ class OfflineDownloadService : Service() {
                     )
                 }
             })
-    }
-
-    fun updateNotification(options: OfflineDownloadOptions) {
-        Timber.d(
-            "showNotification() called with: offlineDownload = [%s], requestedRegions = %s",
-            options,
-            requestedRegions
-        )
-        // TODO request permission if not already given
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Timber.w("Notification permission not given")
-            return
-        }
-
-        Timber.d("Notifying manager for offline download")
-        notificationManager.notify(
-            NOTIFICATION_FOREGROUND_ID,
-            builder.setContentText(
-                resources.getQuantityString(
-                    options.notificationOptions.remainingTextRes,
-                    requestedRegions.size(),
-                    requestedRegions.size()
-                )
-            ).build()
-        )
-
     }
 
     private fun cancelDownloads() {
@@ -249,14 +220,14 @@ class OfflineDownloadService : Service() {
             offlineRegion
         )
         // Send a one-shot fake progress update to initialise the progress bar in the notification in case this was the first download
-        updateNotificationProgressDownload(offlineDownload)
+        updateNotificationProgress(offlineDownload)
         offlineRegion.setObserver(object : OfflineRegion.OfflineRegionObserver {
             override fun onStatusChanged(status: OfflineRegionStatus) {
                 if (status.isComplete) {
                     finishDownload(offlineDownload, offlineRegion)
                     return
                 }
-                progressDownload(offlineDownload, status)
+                updateProgress(offlineDownload, status)
             }
 
             override fun onError(error: OfflineRegionError) {
@@ -296,7 +267,7 @@ class OfflineDownloadService : Service() {
         removeOfflineRegion(offlineDownload.uuid)
     }
 
-    private fun progressDownload(
+    private fun updateProgress(
         downloadOptions: OfflineDownloadOptions,
         status: OfflineRegionStatus
     ) {
@@ -308,7 +279,7 @@ class OfflineDownloadService : Service() {
         // Android Notification Manager will punish us if we notify too often, so we do several safety check
         if (
             regionPercentage != downloadOptions.progress &&
-            regionPercentage % 5 == 0 &&
+            regionPercentage % 2 == 0 &&
             requestedRegions[uuid] != null
         ) {
             // Store the progress in the model, so that it can be accessed later
@@ -319,11 +290,11 @@ class OfflineDownloadService : Service() {
                 regionPercentage
             )
             regionDownloads.put(uuid, downloadOptions)
-            updateNotificationProgressDownload(downloadOptions)
+            updateNotificationProgress(downloadOptions)
         }
     }
 
-    private fun updateNotificationProgressDownload(
+    private fun updateNotificationProgress(
         downloadOptions: OfflineDownloadOptions,
     ) {
         val totalPercentage = calculateTotalDownloadPercentage()
@@ -334,6 +305,12 @@ class OfflineDownloadService : Service() {
         ) {
             // Careful, we have to re-notify the summary each time we update, might have been swiped away
             Timber.v("Notifying progress change to percentage: %s", totalPercentage)
+            builder.setContentText(
+                resources.getString(
+                    downloadOptions.notificationOptions.remainingTextRes,
+                    downloadOptions.progress,
+                )
+            ).build()
             builder.setProgress(100, downloadOptions.progress, false)
             notificationManager.notify(NOTIFICATION_FOREGROUND_ID, builder.build())
         }

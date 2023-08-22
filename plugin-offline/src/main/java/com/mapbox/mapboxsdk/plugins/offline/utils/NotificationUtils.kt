@@ -11,7 +11,9 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.mapbox.mapboxsdk.plugins.offline.R
 import com.mapbox.mapboxsdk.plugins.offline.model.NotificationOptions
+import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants
+import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineDownloadStateReceiver
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 
 const val REQUEST_CODE_CANCEL = 2
@@ -39,10 +41,18 @@ fun setupNotificationChannel(
 
 fun toNotificationBuilder(
     context: Context,
-    contentIntent: PendingIntent?,
-    cancelIntent: Intent,
-    notificationOptions: NotificationOptions
+    downloadOptions: OfflineDownloadOptions
 ): NotificationCompat.Builder {
+    val applicationContext = context.applicationContext
+    val contentIntent = OfflineDownloadStateReceiver.createNotificationIntent(
+        applicationContext,
+        downloadOptions
+    )
+    val cancelIntent = OfflineDownloadStateReceiver.createCancelIntent(
+        applicationContext, downloadOptions
+    )
+    val notificationOptions = downloadOptions.notificationOptions
+
     return NotificationCompat.Builder(context, OfflineConstants.NOTIFICATION_CHANNEL)
         .setContentTitle(notificationOptions.contentTitle)
         .setContentText(notificationOptions.contentText)
