@@ -1,6 +1,7 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline;
 
 import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE;
+import static com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLES;
 
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -10,6 +11,8 @@ import android.content.Intent;
 import androidx.annotation.NonNull;
 
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions;
+
+import java.util.ArrayList;
 
 import timber.log.Timber;
 
@@ -46,7 +49,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchProgressChanged(@NonNull Context context, OfflineDownloadOptions offlineDownload,
-                                        int percentage) {
+            int percentage) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_PROGRESS);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -73,7 +76,7 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
     }
 
     static void dispatchErrorBroadcast(@NonNull Context context, OfflineDownloadOptions offlineDownload,
-                                       String error, String message) {
+            String error, String message) {
         Intent intent = new Intent(OfflineConstants.ACTION_OFFLINE);
         intent.putExtra(OfflineConstants.KEY_STATE, OfflineConstants.STATE_ERROR);
         intent.putExtra(KEY_BUNDLE, offlineDownload);
@@ -97,10 +100,24 @@ public class OfflineDownloadStateReceiver extends BroadcastReceiver {
         return cancelIntent;
     }
 
-    public static PendingIntent createNotificationIntent(Context context, @NonNull OfflineDownloadOptions downloadOptions) {
+    public static PendingIntent createNotificationIntent(Context context,
+            @NonNull OfflineDownloadOptions downloadOptions) {
         Class<?> returnActivity = downloadOptions.getNotificationOptions().getReturnActivityClass();
         Intent notificationIntent = new Intent(context, returnActivity);
         notificationIntent.putExtra(KEY_BUNDLE, downloadOptions);
+        return PendingIntent.getActivity(
+                context,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    public static PendingIntent createNotificationIntent(Context context,
+            @NonNull ArrayList<OfflineDownloadOptions> downloadOptions) {
+        Class<?> returnActivity = downloadOptions.get(0).getNotificationOptions().getReturnActivityClass();
+        Intent notificationIntent = new Intent(context, returnActivity);
+        notificationIntent.putParcelableArrayListExtra(KEY_BUNDLES, downloadOptions);
         return PendingIntent.getActivity(
                 context,
                 0,

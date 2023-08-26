@@ -1,11 +1,19 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.ForegroundServiceStartNotAllowedException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
+import com.mapbox.mapboxsdk.plugins.offline.utils.NOTIFICATION_REQUEST_ID
+import com.mapbox.mapboxsdk.plugins.offline.utils.makeRetryRequestNotification
+import com.mapbox.mapboxsdk.plugins.offline.utils.setupNotificationChannel
 
 /**
  * OfflinePlugin is the main entry point for integrating the offline plugin into your app.
@@ -24,6 +32,14 @@ private constructor(private val context: Context) {
 
     private val stateChangeDispatcher = OfflineDownloadChangeDispatcher()
     private val offlineDownloads: MutableList<OfflineDownloadOptions> = ArrayList()
+    private val notificationManager: NotificationManagerCompat =
+        NotificationManagerCompat.from(context)
+
+    init {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            setupNotificationChannel(context, config)
+        }
+    }
 
     /**
      * Returns an immutable list of the currently active offline downloads
@@ -40,11 +56,16 @@ private constructor(private val context: Context) {
      * @param options the offline download builder
      * @since 0.1.0
      */
-    fun startDownload(options: OfflineDownloadOptions?) {
+    fun startDownload(options: OfflineDownloadOptions) {
+        startDownloads(arrayListOf(options))
+    }
+
+    fun startDownloads(options: ArrayList<OfflineDownloadOptions>) {
+        require(options.isNotEmpty()) { "Unable to start downloads with no options" }
         val intent = Intent(context, OfflineDownloadService::class.java)
-        intent.setAction(OfflineConstants.ACTION_START_DOWNLOAD)
-        intent.putExtra(OfflineConstants.KEY_BUNDLE, options)
-        startServiceCompat(intent)
+        intent.action = OfflineConstants.ACTION_START_DOWNLOAD
+        intent.putParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES, options)
+        startServiceCompat(intent, options)
     }
 
     /**
@@ -55,16 +76,38 @@ private constructor(private val context: Context) {
      */
     fun cancelDownload(offlineDownload: OfflineDownloadOptions?) {
         val intent = Intent(context, OfflineDownloadService::class.java)
-        intent.setAction(OfflineConstants.ACTION_CANCEL_DOWNLOAD)
+        intent.action = OfflineConstants.ACTION_CANCEL_DOWNLOAD
         intent.putExtra(OfflineConstants.KEY_BUNDLE, offlineDownload)
         context.startService(intent)
     }
 
-    private fun startServiceCompat(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    private fun startServiceCompat(
+        intent: Intent,
+        downloadOptions: ArrayList<OfflineDownloadOptions>
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                context.startForegroundService(intent)
+            } catch (ex: ForegroundServiceStartNotAllowedException) {
+                requestForeground(downloadOptions)
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
         } else {
             context.startService(intent)
+        }
+    }
+
+    private fun requestForeground(downloadOptions: ArrayList<OfflineDownloadOptions>) {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationManager.notify(
+                NOTIFICATION_REQUEST_ID,
+                makeRetryRequestNotification(context, config.retryString, downloadOptions)
+            )
         }
     }
 
@@ -212,6 +255,7 @@ private constructor(private val context: Context) {
             context: Context,
             channelName: String? = null,
             channelDescription: String? = null,
+            retryString: String? = null
         ): OfflinePlugin {
             // This method may have many other effects in the future. Remember, the instance can
             // also be accessed and set here, e.g.: `getInstance(context).myField = myValue`
@@ -219,15 +263,27 @@ private constructor(private val context: Context) {
                 // Don't overwrite default
                 OfflineServiceConfiguration(
                     channelDescription = channelDescription,
+                    retryString = retryString
                 )
             } else {
                 OfflineServiceConfiguration(
                     channelName = channelName,
                     channelDescription = channelDescription,
+                    retryString = retryString
                 )
             }
-            OfflineDownloadService.config = config
+            OfflinePlugin.config = config
             return getInstance(context)
         }
+
+
+        /**
+         * Static configuration which is valid for all download services that are created during the
+         * lifetime of the app. Initialized with an empty default containing reasonable fallbacks
+         * where necessary.
+         */
+        @JvmStatic
+        var config: OfflineServiceConfiguration = OfflineServiceConfiguration()
     }
+
 }

@@ -12,17 +12,16 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.offline.OfflineManager
 import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.offline.OfflineRegionError
 import com.mapbox.mapboxsdk.offline.OfflineRegionStatus
 import com.mapbox.mapboxsdk.plugins.offline.model.NotificationOptions
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
-import com.mapbox.mapboxsdk.plugins.offline.utils.setupNotificationChannel
+import com.mapbox.mapboxsdk.plugins.offline.utils.NOTIFICATION_FOREGROUND_ID
 import com.mapbox.mapboxsdk.plugins.offline.utils.toNotificationBuilder
 import timber.log.Timber
-
-private const val NOTIFICATION_FOREGROUND_ID = 1
 
 /**
  * Package for all options that can be configured on an [OfflineDownloadService]. No field is
@@ -34,6 +33,7 @@ data class OfflineServiceConfiguration(
     val channelName: String = "Offline",
     val channelDescription: String? = null,
     val channelLightColor: Int? = null,
+    val retryString: String? = null
 )
 
 /**
@@ -61,12 +61,9 @@ class OfflineDownloadService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Timber.v("onCreate called with config = {%s}", config)
-        // Setup notification manager and channel
+        Timber.v("onCreate called with config = {%s}", OfflinePlugin.config)
+        // Setup notification manager for later, channels are already setup at this point
         notificationManager = NotificationManagerCompat.from(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setupNotificationChannel(this, config)
-        }
 
         // Register the broadcast receiver needed for updating APIs in the OfflinePlugin class.
         broadcastReceiver = OfflineDownloadStateReceiver()
@@ -90,28 +87,52 @@ class OfflineDownloadService : Service() {
      * @since 0.1.0
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.v("onStartCommand called with intent = %s", intent)
+        Timber.i("onStartCommand called with intent = {%s}, startId = %s", intent, startId)
         // Android does not mark this as non-null yet, but we require non-null intent to start work
-        if (intent == null) {
+        requireNotNull(intent)
+        val intentAction = intent.action
+        if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
+            // Cancelling is currently not a foreground action, start right away
+            cancelDownloads()
             return START_REDELIVER_INTENT
         }
-        val downloadOptions: OfflineDownloadOptions = requireNotNull(
-            intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)
-        ) { "DownloadOptions must be passed into the service for it to do any work" }
-        updateNotificationBuilder(downloadOptions)
+
+        if (OfflineConstants.ACTION_START_DOWNLOAD != intentAction) {
+            throw IllegalArgumentException("Invalid intent action $intentAction")
+        }
+
+        // The action is ACTION_START_DOWNLOAD, we need to prepare for foregrounding immediately
+        val downloadOptions: ArrayList<OfflineDownloadOptions> =
+            intent.getParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES) ?: arrayListOf(
+                requireNotNull(intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)) {
+                    "DownloadOptions must be passed into the service for it to do any work"
+                })
+
+        // Fail fast if the list is empty
+        updateNotificationBuilder(downloadOptions[0])
+
         /*
         This service is started as a foreground service, we need to call this method IMMEDIATELY.
         Never put any hard work before this line of code and never delay calling it. The Android
         system will crash the app after only a few seconds if this is not called
          */
         startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
-        onResolveCommand(intent.action, downloadOptions)
-        return START_STICKY
+        createDownloads(downloadOptions)
+        return START_REDELIVER_INTENT
+    }
+
+    private fun createDownloads(downloadOptions: ArrayList<OfflineDownloadOptions>) {
+        // Careful, the instance from outside the service may have died in the meantime. We need to
+        // have an instance for downloads. If app instance is still alive, this will still work
+        Mapbox.getInstance(this)
+        for (option in downloadOptions) {
+            createDownload(option)
+        }
     }
 
     private var lastKnownNotificationOptions: NotificationOptions? = null
 
-    private fun updateNotificationBuilder(downloadOptions: OfflineDownloadOptions) {
+    private fun updateNotificationBuilder(downloadOptions: OfflineDownloadOptions): NotificationCompat.Builder {
         if (lastKnownNotificationOptions != downloadOptions.notificationOptions) {
             lastKnownNotificationOptions = downloadOptions.notificationOptions
             builder = toNotificationBuilder(
@@ -119,27 +140,7 @@ class OfflineDownloadService : Service() {
                 downloadOptions = downloadOptions
             )
         }
-    }
-
-    /**
-     * Several actions can take place inside this service including starting and canceling a specific region download.
-     * First, it is determined what action to take by using the `intentAction` parameter. This action is finally
-     * passed in to the correct map offline methods.
-     *
-     * @param intentAction    string holding the task that should be performed on the specific
-     * [OfflineDownloadOptions] regional download.
-     * @param offlineDownload the download model which defines the region and other metadata needed to download the
-     * correct region.
-     * @since 0.1.0
-     */
-    private fun onResolveCommand(intentAction: String?, downloadOptions: OfflineDownloadOptions) {
-        if (OfflineConstants.ACTION_START_DOWNLOAD == intentAction) {
-            createDownload(downloadOptions)
-        } else if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
-            cancelDownloads()
-        } else {
-            throw IllegalArgumentException("Invalid intent action $intentAction")
-        }
+        return builder
     }
 
     private fun createDownload(offlineDownload: OfflineDownloadOptions) {
@@ -200,14 +201,26 @@ class OfflineDownloadService : Service() {
     @Synchronized
     private fun removeOfflineRegion(regionId: Long) {
         requestedRegions.remove(regionId)
+        var stopped = false
         if (requestedRegions.size() == 0) {
             // The current "batch / phase" off downloads is done, inform the user
 
             // Clear download progress of all items, so that future additions don't have remaining 100% models here
             regionDownloads.clear()
+            stopForegroundCompat()
+            // Stop the service immediately, ordering of the downloads does not matter, they're done
+            stopped = stopSelfResult(-1)
+        }
+        Timber.i("removeOfflineRegion with id = {%s}, stopped = %s", regionId, stopped)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun stopForegroundCompat() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
             stopForeground(true)
         }
-        stopSelf(regionId.toInt())
     }
 
     private fun launchDownload(
@@ -236,7 +249,7 @@ class OfflineDownloadService : Service() {
                     applicationContext, offlineDownload,
                     error.reason, error.message
                 )
-                stopSelf(offlineDownload.uuid.toInt())
+                removeOfflineRegion(offlineDownload.uuid)
             }
 
             override fun mapboxTileCountLimitExceeded(limit: Long) {
@@ -338,16 +351,5 @@ class OfflineDownloadService : Service() {
     override fun onBind(intent: Intent): IBinder? {
         // don't provide binding
         return null
-    }
-
-    companion object {
-
-        /**
-         * Static configuration which is valid for all download services that are created during the
-         * lifetime of the app. Initialized with an empty default containing reasonable fallbacks
-         * where necessary.
-         */
-        @JvmStatic
-        var config: OfflineServiceConfiguration = OfflineServiceConfiguration()
     }
 }

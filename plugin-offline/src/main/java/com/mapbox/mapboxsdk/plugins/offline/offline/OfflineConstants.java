@@ -26,4 +26,5 @@ public class OfflineConstants {
     public static final String RETURNING_REGION_NAME = "com.mapbox.mapboxsdk.plugins.offline.returing.region.name";
 
     public static final String KEY_BUNDLE = "com.mapbox.mapboxsdk.plugins.offline.download.object";
+    public static final String KEY_BUNDLES = "com.mapbox.mapboxsdk.plugins.offline.download.objects";
 }

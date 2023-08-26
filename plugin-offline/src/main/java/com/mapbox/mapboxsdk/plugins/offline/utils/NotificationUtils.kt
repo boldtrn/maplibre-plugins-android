@@ -5,18 +5,18 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.mapbox.mapboxsdk.plugins.offline.R
-import com.mapbox.mapboxsdk.plugins.offline.model.NotificationOptions
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineDownloadStateReceiver
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineServiceConfiguration
 
-const val REQUEST_CODE_CANCEL = 2
+const val NOTIFICATION_FOREGROUND_ID = 1
+const val NOTIFICATION_REQUEST_ID = 2
+const val REQUEST_CODE_CANCEL = 100
 
 @RequiresApi(api = Build.VERSION_CODES.O)
 fun setupNotificationChannel(
@@ -69,4 +69,22 @@ fun toNotificationBuilder(
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         )
+}
+
+fun makeRetryRequestNotification(
+    context: Context,
+    retryText: String?,
+    downloads: ArrayList<OfflineDownloadOptions>,
+): Notification {
+    val notificationOptions = downloads[0].notificationOptions
+    return NotificationCompat.Builder(context, OfflineConstants.NOTIFICATION_CHANNEL)
+        .setContentTitle(notificationOptions.contentTitle)
+        .setContentText(retryText)
+        .setContentIntent(
+            OfflineDownloadStateReceiver.createNotificationIntent(
+                context.applicationContext,
+                downloads
+            )
+        )
+        .build()
 }
