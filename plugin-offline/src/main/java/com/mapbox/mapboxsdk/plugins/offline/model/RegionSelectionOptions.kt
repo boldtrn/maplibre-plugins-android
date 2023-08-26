@@ -7,8 +7,8 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class RegionSelectionOptions(
-    val startingBounds: LatLngBounds?,
-    val startingCameraPosition: CameraPosition?,
+    val startingBounds: LatLngBounds? = null,
+    val startingCameraPosition: CameraPosition? = null,
 ) : Parcelable {
 
     @Deprecated("use proper getter syntax", replaceWith = ReplaceWith("getStartingBounds()"))

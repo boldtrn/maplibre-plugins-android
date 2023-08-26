@@ -11,7 +11,6 @@ import com.mapbox.mapboxsdk.plugins.offline.OfflineRegionSelector
 import com.mapbox.mapboxsdk.plugins.offline.model.NotificationOptions
 import com.mapbox.mapboxsdk.plugins.offline.model.RegionSelectionOptions
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflinePlugin
-import com.mapbox.mapboxsdk.plugins.testapp.R
 import com.mapbox.mapboxsdk.plugins.testapp.databinding.ActivityOfflineUiComponentsBinding
 import java.util.Locale
 
@@ -32,10 +31,9 @@ class OfflineUiComponentsActivity : AppCompatActivity() {
 
     private fun onOfflineRegionSelectorButtonClicked() {
         // Create the offline region selector options
-        val options = RegionSelectionOptions.builder()
-            .statingCameraPosition(
-                CameraPosition.Builder().target(LatLng(32.7852, -96.8154)).zoom(12.0).build()
-            ).build()
+        val options = RegionSelectionOptions(
+            startingCameraPosition = CameraPosition.Builder().target(LatLng(32.7852, -96.8154)).zoom(12.0).build()
+        )
 
         val intent = OfflineRegionSelector.IntentBuilder()
             .regionSelectionOptions(options)
