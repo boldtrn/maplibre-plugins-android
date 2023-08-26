@@ -2,6 +2,10 @@
 
 Mapbox welcomes participation and contributions from everyone.
 
+### mapbox-android-plugin-offline-v9:1.1.0 - August, 2023
+#### BREAKING
+- Major rewrite of offline plugin by @avalanches
+
 ### mapbox-android-plugin-offline-v9:0.8.0 - March 23, 2021
 #### Bugs
 - Fix download notification doesn't dismiss issue. [#1176](https://github.com/mapbox/mapbox-plugins-android/pull/1176)
