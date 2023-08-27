@@ -164,6 +164,7 @@ class OfflineDownloadService : Service() {
     }
 
     private fun cancelDownload(uuid: Long) {
+        Timber.v("Requesting cancellation of download for Offlineregion with uuid = $uuid")
         val downloadOptions = OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == uuid }.firstOrNull()
         val offlineRegion = requestedRegions[uuid]
         if (downloadOptions == null || offlineRegion == null) {
@@ -187,6 +188,7 @@ class OfflineDownloadService : Service() {
         })
         OfflinePlugin.getInstance(this).removeDownload(downloadOptions, true)
         removeOfflineRegion(uuid)
+        Timber.v("Cancelled download for Offlineregion with uuid = $uuid")
     }
 
     private fun removeOfflineRegion(uuid: Long) {
