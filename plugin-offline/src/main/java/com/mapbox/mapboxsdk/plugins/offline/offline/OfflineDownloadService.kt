@@ -108,8 +108,8 @@ class OfflineDownloadService : Service() {
          */
         startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
 
-        val downloadOptions = OfflinePlugin.getInstance(this).pendingDownloads
-        OfflinePlugin.getInstance(this).pendingDownloads = listOf()
+        val downloadOptions = OfflinePlugin.pendingDownloads
+        OfflinePlugin.pendingDownloads = listOf()
 
         // Fail fast if the list is empty
         updateNotificationBuilder(downloadOptions[0])

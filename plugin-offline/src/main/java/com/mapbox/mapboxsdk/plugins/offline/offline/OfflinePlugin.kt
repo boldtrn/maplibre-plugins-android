@@ -35,8 +35,6 @@ private constructor(private val context: Context) {
     private val notificationManager: NotificationManagerCompat =
         NotificationManagerCompat.from(context)
 
-    var pendingDownloads = listOf<OfflineDownloadOptions>()
-
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setupNotificationChannel(context, config)
@@ -228,6 +226,8 @@ private constructor(private val context: Context) {
         @Volatile
         @SuppressLint("StaticFieldLeak")
         private var INSTANCE: OfflinePlugin? = null
+
+        var pendingDownloads = listOf<OfflineDownloadOptions>()
 
         /**
          * Get the unique instance of the OfflinePlugin
