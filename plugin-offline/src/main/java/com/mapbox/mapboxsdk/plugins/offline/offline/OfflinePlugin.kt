@@ -64,7 +64,7 @@ private constructor(private val context: Context) {
         require(options.isNotEmpty()) { "Unable to start downloads with no options" }
         val intent = Intent(context, OfflineDownloadService::class.java)
         intent.action = OfflineConstants.ACTION_START_DOWNLOAD
-        pendingDownloads = options
+        intent.putParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES, options)
         startServiceCompat(intent, options)
     }
 
@@ -226,8 +226,6 @@ private constructor(private val context: Context) {
         @Volatile
         @SuppressLint("StaticFieldLeak")
         private var INSTANCE: OfflinePlugin? = null
-
-        var pendingDownloads = listOf<OfflineDownloadOptions>()
 
         /**
          * Get the unique instance of the OfflinePlugin

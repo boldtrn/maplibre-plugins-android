@@ -101,24 +101,27 @@ class OfflineDownloadService : Service() {
             throw IllegalArgumentException("Invalid intent action $intentAction")
         }
 
+        // The action is ACTION_START_DOWNLOAD, we need to prepare for foregrounding immediately
+        val downloadOptions: ArrayList<OfflineDownloadOptions> =
+            intent.getParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES) ?: arrayListOf(
+                requireNotNull(intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)) {
+                    "DownloadOptions must be passed into the service for it to do any work"
+                })
+
+        // Fail fast if the list is empty
+        updateNotificationBuilder(downloadOptions[0])
+
         /*
         This service is started as a foreground service, we need to call this method IMMEDIATELY.
         Never put any hard work before this line of code and never delay calling it. The Android
         system will crash the app after only a few seconds if this is not called
          */
         startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
-
-        val downloadOptions = OfflinePlugin.pendingDownloads
-        OfflinePlugin.pendingDownloads = listOf()
-
-        // Fail fast if the list is empty
-        updateNotificationBuilder(downloadOptions[0])
-
         createDownloads(downloadOptions)
         return START_REDELIVER_INTENT
     }
 
-    private fun createDownloads(downloadOptions: List<OfflineDownloadOptions>) {
+    private fun createDownloads(downloadOptions: ArrayList<OfflineDownloadOptions>) {
         // Careful, the instance from outside the service may have died in the meantime. We need to
         // have an instance for downloads. If app instance is still alive, this will still work
         Mapbox.getInstance(this)
