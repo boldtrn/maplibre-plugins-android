@@ -315,7 +315,9 @@ class OfflineDownloadService : Service() {
 
     private fun calculateTotalDownloadPercentage(): Int {
         var total = 0
-        for (downloads in OfflinePlugin.getInstance(this).getActiveDownloads()) {
+        val activeDownloads = OfflinePlugin.getInstance(this).getActiveDownloads()
+        if (activeDownloads.isEmpty()) return total
+        for (downloads in activeDownloads) {
             total += downloads.progress
         }
         return total / OfflinePlugin.getInstance(this).getActiveDownloads().size
