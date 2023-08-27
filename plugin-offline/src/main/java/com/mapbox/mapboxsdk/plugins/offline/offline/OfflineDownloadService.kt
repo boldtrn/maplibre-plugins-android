@@ -52,10 +52,9 @@ class OfflineDownloadService : Service() {
     private lateinit var notificationManager: NotificationManagerCompat
     private lateinit var builder: NotificationCompat.Builder
 
-    // map offline regions to requests, ids are received with onStartCommand, these match serviceId
+    // map offline regions to requests, ids are received with onStartCommand, the keys match serviceId
     // in OfflineDownloadOptions
     private val requestedRegions = LongSparseArray<OfflineRegion>()
-    private val regionDownloads = LongSparseArray<OfflineDownloadOptions>()
 
     override fun onCreate() {
         super.onCreate()
@@ -67,7 +66,7 @@ class OfflineDownloadService : Service() {
 
     /**
      * Called each time a new download is initiated. First it acquires the [OfflineDownloadOptions] from the
-     * intent and if found, the process of downloading the offline region carries on to the
+     * OfflinePlugin's pendingIntents and if found, the process of downloading the offline region carries on to the
      * [.onResolveCommand]. If the [OfflineDownloadOptions] fails to be
      * found inside the intent, the service is stopped (only if no other downloads are currently running) and throws a
      * [IllegalArgumentException].
@@ -155,7 +154,7 @@ class OfflineDownloadService : Service() {
     }
 
     private fun cancelDownload(uuid: Long) {
-        val downloadOptions = regionDownloads[uuid]
+        val downloadOptions = OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == uuid }.firstOrNull()
         val offlineRegion = requestedRegions[uuid]
         if (downloadOptions == null || offlineRegion == null) {
             Timber.w("Could not find download with uuid $uuid")
@@ -189,9 +188,6 @@ class OfflineDownloadService : Service() {
         var stopped = false
         if (requestedRegions.size() == 0) {
             // The current "batch / phase" off downloads is done, inform the user
-
-            // Clear download progress of all items, so that future additions don't have remaining 100% models here
-            regionDownloads.clear()
             stopForegroundCompat()
             // Stop the service immediately, ordering of the downloads does not matter, they're done
             stopped = stopSelfResult(-1)
@@ -223,9 +219,9 @@ class OfflineDownloadService : Service() {
             override fun onStatusChanged(status: OfflineRegionStatus) {
                 if (status.isComplete) {
                     finishDownload(offlineDownload, offlineRegion)
-                    return
+                } else {
+                    updateProgress(offlineDownload, status)
                 }
-                updateProgress(offlineDownload, status)
             }
 
             override fun onError(error: OfflineRegionError) {
@@ -273,19 +269,14 @@ class OfflineDownloadService : Service() {
     ) {
         val regionPercentage =
             (if (status.requiredResourceCount >= 0) (100.0 * status.completedResourceCount / status.requiredResourceCount) else 0.0).toInt()
-        val uuid = downloadOptions.uuid
 
         // Careful, DownloadManager alerts download progress extremely rapidly
         // Android Notification Manager will punish us if we notify too often, so we do several safety check
-        if (
-            regionPercentage != downloadOptions.progress &&
-            regionPercentage % 2 == 0 &&
-            requestedRegions[uuid] != null
-        ) {
+        if (regionPercentage > downloadOptions.progress) {
             // Store the progress in the model, so that it can be accessed later
             downloadOptions.progress = regionPercentage
             OfflinePlugin.getInstance(this).onProgressChanged(downloadOptions, regionPercentage)
-            regionDownloads.put(uuid, downloadOptions)
+            OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == downloadOptions.uuid }.forEach { it.progress = regionPercentage }
             updateNotificationProgress(downloadOptions)
         }
     }
@@ -324,10 +315,10 @@ class OfflineDownloadService : Service() {
 
     private fun calculateTotalDownloadPercentage(): Int {
         var total = 0
-        for (index in 0 until regionDownloads.size()) {
-            total += regionDownloads.valueAt(index).progress
+        for (downloads in OfflinePlugin.getInstance(this).getActiveDownloads()) {
+            total += downloads.progress
         }
-        return total / requestedRegions.size()
+        return total / OfflinePlugin.getInstance(this).getActiveDownloads().size
     }
 
     override fun onBind(intent: Intent): IBinder? {
