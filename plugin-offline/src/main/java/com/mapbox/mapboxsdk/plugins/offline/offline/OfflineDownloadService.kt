@@ -1,9 +1,9 @@
 package com.mapbox.mapboxsdk.plugins.offline.offline
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
@@ -11,7 +11,6 @@ import androidx.collection.LongSparseArray
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.mapboxsdk.offline.OfflineManager
 import com.mapbox.mapboxsdk.offline.OfflineRegion
@@ -52,7 +51,6 @@ data class OfflineServiceConfiguration(
 class OfflineDownloadService : Service() {
     private lateinit var notificationManager: NotificationManagerCompat
     private lateinit var builder: NotificationCompat.Builder
-    private var broadcastReceiver: OfflineDownloadStateReceiver? = null
 
     // map offline regions to requests, ids are received with onStartCommand, these match serviceId
     // in OfflineDownloadOptions
@@ -64,15 +62,7 @@ class OfflineDownloadService : Service() {
         Timber.v("onCreate called with config = {%s}", OfflinePlugin.config)
         // Setup notification manager for later, channels are already setup at this point
         notificationManager = NotificationManagerCompat.from(this)
-
-        // Register the broadcast receiver needed for updating APIs in the OfflinePlugin class.
-        broadcastReceiver = OfflineDownloadStateReceiver()
-        ContextCompat.registerReceiver(
-            this,
-            broadcastReceiver,
-            IntentFilter(OfflineConstants.ACTION_OFFLINE),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        Timber.d("onCreate finished")
     }
 
     /**
@@ -101,13 +91,11 @@ class OfflineDownloadService : Service() {
             throw IllegalArgumentException("Invalid intent action $intentAction")
         }
 
-        // The action is ACTION_START_DOWNLOAD, we need to prepare for foregrounding immediately
-        val downloadOptions: ArrayList<OfflineDownloadOptions> =
-            intent.getParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES) ?: arrayListOf(
-                requireNotNull(intent.getParcelableExtra(OfflineConstants.KEY_BUNDLE)) {
-                    "DownloadOptions must be passed into the service for it to do any work"
-                })
+        val downloadOptions = requireNotNull(OfflinePlugin.getInstance(this).pendingDownloads) {
+            "Downloads must be set before starting the service"
+        }
 
+        Timber.d("service start with {%s}", downloadOptions)
         // Fail fast if the list is empty
         updateNotificationBuilder(downloadOptions[0])
 
@@ -121,7 +109,7 @@ class OfflineDownloadService : Service() {
         return START_REDELIVER_INTENT
     }
 
-    private fun createDownloads(downloadOptions: ArrayList<OfflineDownloadOptions>) {
+    private fun createDownloads(downloadOptions: List<OfflineDownloadOptions>) {
         // Careful, the instance from outside the service may have died in the meantime. We need to
         // have an instance for downloads. If app instance is still alive, this will still work
         Mapbox.getInstance(this)
@@ -153,18 +141,16 @@ class OfflineDownloadService : Service() {
                     Timber.v("onCreate with: offlineRegion = %s", offlineRegion)
                     // TODO until this point, the offlineDownload.id is completely invalid, can we make it lateinit?
                     val options = offlineDownload.copy(uuid = offlineRegion.id)
-                    OfflineDownloadStateReceiver.dispatchStartBroadcast(applicationContext, options)
+                    OfflinePlugin.getInstance(this@OfflineDownloadService)
+                        .addDownload(offlineDownload)
                     requestedRegions.put(options.uuid, offlineRegion)
                     launchDownload(options, offlineRegion)
                 }
 
                 override fun onError(error: String) {
                     Timber.w("onError with error = %s", error)
-                    OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                        applicationContext,
-                        offlineDownload,
-                        error
-                    )
+                    OfflinePlugin.getInstance(this@OfflineDownloadService)
+                        .errorDownload(offlineDownload, error)
                 }
             })
     }
@@ -187,20 +173,26 @@ class OfflineDownloadService : Service() {
 
             override fun onError(error: String) {
                 Timber.w("Offline region {%s} deletion error: %s", offlineRegion.id, error)
-                OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                    applicationContext,
-                    downloadOptions,
-                    error
-                )
+                if (downloadOptions != null) {
+                    OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
+                        downloadOptions,
+                        error
+                    )
+                }
             }
         })
-        OfflineDownloadStateReceiver.dispatchCancelBroadcast(applicationContext, downloadOptions)
+        if (downloadOptions != null) {
+            OfflinePlugin.getInstance(this).removeDownload(downloadOptions, true)
+        }
         removeOfflineRegion(offlineRegion.id)
     }
 
-    @Synchronized
     private fun removeOfflineRegion(regionId: Long) {
         requestedRegions.remove(regionId)
+        maybeStopService(regionId)
+    }
+
+    private fun maybeStopService(regionId: Long) {
         var stopped = false
         if (requestedRegions.size() == 0) {
             // The current "batch / phase" off downloads is done, inform the user
@@ -245,18 +237,19 @@ class OfflineDownloadService : Service() {
 
             override fun onError(error: OfflineRegionError) {
                 Timber.w("onError with error = %s", error)
-                OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                    applicationContext, offlineDownload,
-                    error.reason, error.message
+                OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
+                    offlineDownload = offlineDownload,
+                    error = error.reason,
+                    errorMessage = error.message
                 )
-                removeOfflineRegion(offlineDownload.uuid)
+                maybeStopService(offlineDownload.uuid)
             }
 
             override fun mapboxTileCountLimitExceeded(limit: Long) {
                 Timber.w("mapboxTileCountLimitExceeded with limit = %s", limit)
-                OfflineDownloadStateReceiver.dispatchErrorBroadcast(
-                    applicationContext, offlineDownload,
-                    "Mapbox tile count limit exceeded:$limit"
+                OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
+                    offlineDownload = offlineDownload,
+                    error = "Mapbox tile count limit exceeded:$limit"
                 )
             }
         })
@@ -274,7 +267,8 @@ class OfflineDownloadService : Service() {
      * @since 0.1.0
      */
     fun finishDownload(offlineDownload: OfflineDownloadOptions, offlineRegion: OfflineRegion) {
-        OfflineDownloadStateReceiver.dispatchSuccessBroadcast(this, offlineDownload)
+        // Announce the finish to any potential listeners as fast as possible
+        OfflinePlugin.getInstance(this).removeDownload(offlineDownload, false)
         offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
         offlineRegion.setObserver(null)
         removeOfflineRegion(offlineDownload.uuid)
@@ -297,37 +291,39 @@ class OfflineDownloadService : Service() {
         ) {
             // Store the progress in the model, so that it can be accessed later
             downloadOptions.progress = regionPercentage
-            OfflineDownloadStateReceiver.dispatchProgressChanged(
-                this,
-                downloadOptions,
-                regionPercentage
-            )
+            OfflinePlugin.getInstance(this).onProgressChanged(downloadOptions, regionPercentage)
             regionDownloads.put(uuid, downloadOptions)
             updateNotificationProgress(downloadOptions)
         }
     }
 
+    private var lastAnnouncedProgress = 0
+
+    @SuppressLint("MissingPermission")
     private fun updateNotificationProgress(
         downloadOptions: OfflineDownloadOptions,
     ) {
         val totalPercentage = calculateTotalDownloadPercentage()
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            // Careful, we have to re-notify the summary each time we update, might have been swiped away
+        // Do another safety check to lower amount of Android notifications
+        if (hasNotificationPermission() && totalPercentage != lastAnnouncedProgress) {
             Timber.v("Notifying progress change to percentage: %s", totalPercentage)
+            lastAnnouncedProgress = totalPercentage
             builder.setContentText(
                 resources.getString(
                     downloadOptions.notificationOptions.remainingTextRes,
-                    downloadOptions.progress,
+                    totalPercentage,
                 )
             ).build()
-            builder.setProgress(100, downloadOptions.progress, false)
+            builder.setProgress(100, totalPercentage, false)
+            // We have to re-notify the summary each time we update, might have been swiped away
             notificationManager.notify(NOTIFICATION_FOREGROUND_ID, builder.build())
         }
     }
+
+    private fun hasNotificationPermission() = ActivityCompat.checkSelfPermission(
+        this,
+        Manifest.permission.POST_NOTIFICATIONS
+    ) == PackageManager.PERMISSION_GRANTED
 
     private fun calculateTotalDownloadPercentage(): Int {
         var total = 0
@@ -335,17 +331,6 @@ class OfflineDownloadService : Service() {
             total += regionDownloads.valueAt(index).progress
         }
         return total / requestedRegions.size()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (broadcastReceiver != null) {
-            try {
-                unregisterReceiver(broadcastReceiver)
-            } catch (ex: IllegalStateException) {
-                Timber.d("Receiver already unregistered, ignoring")
-            }
-        }
     }
 
     override fun onBind(intent: Intent): IBinder? {

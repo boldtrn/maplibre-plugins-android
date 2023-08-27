@@ -18,17 +18,11 @@ import com.mapbox.mapboxsdk.plugins.offline.utils.setupNotificationChannel
 /**
  * OfflinePlugin is the main entry point for integrating the offline plugin into your app.
  *
- *
  * To start downloading a region call [.startDownload]
- *
  *
  * @since 0.1.0
  */
-class OfflinePlugin
-/**
- * Private no-args constructor for singleton
- */
-private constructor(private val context: Context) {
+class OfflinePlugin private constructor(private val context: Context) {
 
     private val stateChangeDispatcher = OfflineDownloadChangeDispatcher()
     private val offlineDownloads: MutableList<OfflineDownloadOptions> = ArrayList()
@@ -64,20 +58,18 @@ private constructor(private val context: Context) {
         require(options.isNotEmpty()) { "Unable to start downloads with no options" }
         val intent = Intent(context, OfflineDownloadService::class.java)
         intent.action = OfflineConstants.ACTION_START_DOWNLOAD
-        intent.putParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES, options)
+        pendingDownloads = options
         startServiceCompat(intent, options)
     }
 
     /**
      * Cancel an ongoing download.
      *
-     * @param offlineDownload the offline download
      * @since 0.1.0
      */
-    fun cancelDownload(offlineDownload: OfflineDownloadOptions?) {
+    fun cancelDownload() {
         val intent = Intent(context, OfflineDownloadService::class.java)
         intent.action = OfflineConstants.ACTION_CANCEL_DOWNLOAD
-        intent.putExtra(OfflineConstants.KEY_BUNDLE, offlineDownload)
         context.startService(intent)
     }
 
@@ -197,8 +189,8 @@ private constructor(private val context: Context) {
      */
     fun errorDownload(
         offlineDownload: OfflineDownloadOptions,
-        error: String?,
-        errorMessage: String?
+        error: String? = null,
+        errorMessage: String? = null
     ) {
         stateChangeDispatcher.onError(offlineDownload, error, errorMessage)
         removeDownloadFromList(offlineDownload)
@@ -219,6 +211,9 @@ private constructor(private val context: Context) {
     fun onProgressChanged(offlineDownload: OfflineDownloadOptions, progress: Int) {
         stateChangeDispatcher.onProgress(offlineDownload, progress)
     }
+
+    var pendingDownloads: List<OfflineDownloadOptions>? = null
+        private set
 
     companion object {
         // Suppress warning about context being possibly leaked, we immediately get the application

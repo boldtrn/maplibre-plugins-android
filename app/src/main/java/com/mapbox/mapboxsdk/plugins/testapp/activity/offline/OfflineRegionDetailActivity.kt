@@ -10,7 +10,6 @@ import com.mapbox.mapboxsdk.offline.OfflineRegion
 import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition
 import com.mapbox.mapboxsdk.offline.OfflineRegionStatus
 import com.mapbox.mapboxsdk.plugins.offline.model.OfflineDownloadOptions
-import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineConstants.KEY_BUNDLE
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflineDownloadChangeListener
 import com.mapbox.mapboxsdk.plugins.offline.offline.OfflinePlugin
 import com.mapbox.mapboxsdk.plugins.offline.utils.OfflineUtils
@@ -98,7 +97,8 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
 
     private fun loadOfflineDownload(bundle: Bundle) {
         val regionId: Long
-        val offlineDownload = bundle.getParcelable<OfflineDownloadOptions>(KEY_BUNDLE)
+        // TODO broken since moving to collective notification for all downloads
+        val offlineDownload = bundle.getParcelable<OfflineDownloadOptions>(KEY_REGION_ID_BUNDLE)
         regionId = // coming from notification
             offlineDownload?.uuid ?: // coming from list
                     bundle.getLong(KEY_REGION_ID_BUNDLE, -1)
@@ -171,7 +171,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
                 val offlineDownload =
                     offlinePlugin?.getActiveDownloadForOfflineRegion(it)
                 if (offlineDownload != null) {
-                    offlinePlugin?.cancelDownload(offlineDownload)
+                    offlinePlugin?.cancelDownload()
                     isDownloading = false
                 } else {
                     it.delete(offlineRegionDeleteCallback)
