@@ -60,10 +60,6 @@ private constructor(private val context: Context) {
         startDownloads(arrayListOf(options))
     }
 
-    /**
-     * Start multiple downloads, like in startDownload. Please note all options should have
-     * executeAsForegroundService with the same value.
-     */
     fun startDownloads(options: ArrayList<OfflineDownloadOptions>) {
         require(options.isNotEmpty()) { "Unable to start downloads with no options" }
         val intent = Intent(context, OfflineDownloadService::class.java)
@@ -89,21 +85,16 @@ private constructor(private val context: Context) {
         intent: Intent,
         downloadOptions: ArrayList<OfflineDownloadOptions>
     ) {
-        if(downloadOptions.isEmpty()) return
-        if(!downloadOptions.first().executeAsForegroundService) {
-            context.startService(intent)
-        }else{
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    context.startForegroundService(intent)
-                } catch (ex: ForegroundServiceStartNotAllowedException) {
-                    requestForeground(downloadOptions)
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
                 context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            } catch (ex: ForegroundServiceStartNotAllowedException) {
+                requestForeground(downloadOptions)
             }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
         }
     }
 
