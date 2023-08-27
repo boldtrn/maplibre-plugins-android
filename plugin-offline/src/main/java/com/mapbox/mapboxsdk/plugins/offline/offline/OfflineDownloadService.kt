@@ -83,7 +83,8 @@ class OfflineDownloadService : Service() {
         val intentAction = intent.action
         if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
             // Cancelling is currently not a foreground action, start right away
-            cancelDownloads()
+            val uuid = intent.getLongExtra(OfflineConstants.KEY_BUNDLE_OFFLINE_REGION_ID, 0L)
+            cancelDownload(uuid)
             return START_REDELIVER_INTENT
         }
 
@@ -139,12 +140,10 @@ class OfflineDownloadService : Service() {
             object : OfflineManager.CreateOfflineRegionCallback {
                 override fun onCreate(offlineRegion: OfflineRegion) {
                     Timber.v("onCreate with: offlineRegion = %s", offlineRegion)
-                    // TODO until this point, the offlineDownload.id is completely invalid, can we make it lateinit?
-                    val options = offlineDownload.copy(uuid = offlineRegion.id)
                     OfflinePlugin.getInstance(this@OfflineDownloadService)
                         .addDownload(offlineDownload)
-                    requestedRegions.put(options.uuid, offlineRegion)
-                    launchDownload(options, offlineRegion)
+                    requestedRegions.put(offlineDownload.uuid, offlineRegion)
+                    launchDownload(offlineDownload, offlineRegion)
                 }
 
                 override fun onError(error: String) {
@@ -155,44 +154,38 @@ class OfflineDownloadService : Service() {
             })
     }
 
-    private fun cancelDownloads() {
-        // Careful, the array is manipulated during this operation, iterate backwards to preserve indexing
-        for (index in requestedRegions.size() - 1 downTo 0) {
-            cancelDownload(requestedRegions.valueAt(index))
+    private fun cancelDownload(uuid: Long) {
+        val downloadOptions = regionDownloads[uuid]
+        val offlineRegion = requestedRegions[uuid]
+        if (downloadOptions == null || offlineRegion == null) {
+            Timber.w("Could not find download with uuid $uuid")
+            return
         }
-    }
-
-    private fun cancelDownload(offlineRegion: OfflineRegion) {
-        val downloadOptions = regionDownloads[offlineRegion.id]
         offlineRegion.setDownloadState(OfflineRegion.STATE_INACTIVE)
         offlineRegion.setObserver(null)
         offlineRegion.delete(object : OfflineRegion.OfflineRegionDeleteCallback {
             override fun onDelete() {
-                Timber.v("Offline region {%s} deleted", offlineRegion.id)
+                Timber.v("Offline region with UUID {%s} deleted ", uuid)
             }
 
             override fun onError(error: String) {
-                Timber.w("Offline region {%s} deletion error: %s", offlineRegion.id, error)
-                if (downloadOptions != null) {
-                    OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
-                        downloadOptions,
-                        error
-                    )
-                }
+                Timber.w("Offline region with UUID {%s} deletion error: %s", uuid, error)
+                OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
+                    downloadOptions,
+                    error
+                )
             }
         })
-        if (downloadOptions != null) {
-            OfflinePlugin.getInstance(this).removeDownload(downloadOptions, true)
-        }
-        removeOfflineRegion(offlineRegion.id)
+        OfflinePlugin.getInstance(this).removeDownload(downloadOptions, true)
+        removeOfflineRegion(uuid)
     }
 
-    private fun removeOfflineRegion(regionId: Long) {
-        requestedRegions.remove(regionId)
-        maybeStopService(regionId)
+    private fun removeOfflineRegion(uuid: Long) {
+        requestedRegions.remove(uuid)
+        maybeStopService(uuid)
     }
 
-    private fun maybeStopService(regionId: Long) {
+    private fun maybeStopService(uuid: Long) {
         var stopped = false
         if (requestedRegions.size() == 0) {
             // The current "batch / phase" off downloads is done, inform the user
@@ -203,7 +196,7 @@ class OfflineDownloadService : Service() {
             // Stop the service immediately, ordering of the downloads does not matter, they're done
             stopped = stopSelfResult(-1)
         }
-        Timber.i("removeOfflineRegion with id = {%s}, stopped = %s", regionId, stopped)
+        Timber.i("removeOfflineRegion with uuid = {%s}, stopped = %s", uuid, stopped)
     }
 
     @Suppress("DEPRECATION")
@@ -320,10 +313,14 @@ class OfflineDownloadService : Service() {
         }
     }
 
-    private fun hasNotificationPermission() = ActivityCompat.checkSelfPermission(
-        this,
-        Manifest.permission.POST_NOTIFICATIONS
-    ) == PackageManager.PERMISSION_GRANTED
+    private fun hasNotificationPermission() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
 
     private fun calculateTotalDownloadPercentage(): Int {
         var total = 0
