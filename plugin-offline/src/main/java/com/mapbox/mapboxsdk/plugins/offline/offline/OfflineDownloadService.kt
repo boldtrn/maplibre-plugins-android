@@ -101,13 +101,6 @@ class OfflineDownloadService : Service() {
             throw IllegalArgumentException("Invalid intent action $intentAction")
         }
 
-        /*
-        This service is started as a foreground service, we need to call this method IMMEDIATELY.
-        Never put any hard work before this line of code and never delay calling it. The Android
-        system will crash the app after only a few seconds if this is not called
-         */
-        startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
-
         // The action is ACTION_START_DOWNLOAD, we need to prepare for foregrounding immediately
         val downloadOptions: ArrayList<OfflineDownloadOptions> =
             intent.getParcelableArrayListExtra(OfflineConstants.KEY_BUNDLES) ?: arrayListOf(
@@ -117,6 +110,15 @@ class OfflineDownloadService : Service() {
 
         // Fail fast if the list is empty
         updateNotificationBuilder(downloadOptions[0])
+
+        if(downloadOptions.first().executeAsForegroundService){
+            /*
+           This service is started as a foreground service, we need to call this method IMMEDIATELY.
+           Never put any hard work before this line of code and never delay calling it. The Android
+           system will crash the app after only a few seconds if this is not called
+            */
+            startForeground(NOTIFICATION_FOREGROUND_ID, builder.build())
+        }
 
         createDownloads(downloadOptions)
         return START_REDELIVER_INTENT
