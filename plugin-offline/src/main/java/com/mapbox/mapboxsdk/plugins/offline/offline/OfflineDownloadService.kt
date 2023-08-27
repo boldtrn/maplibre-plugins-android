@@ -82,8 +82,12 @@ class OfflineDownloadService : Service() {
         val intentAction = intent.action
         if (OfflineConstants.ACTION_CANCEL_DOWNLOAD == intentAction) {
             // Cancelling is currently not a foreground action, start right away
-            val uuid = intent.getLongExtra(OfflineConstants.KEY_BUNDLE_OFFLINE_REGION_ID, 0L)
-            cancelDownload(uuid)
+            val uuid = intent.getLongExtra(OfflineConstants.KEY_BUNDLE_OFFLINE_REGION_ID, -1L)
+            if (uuid == -1L) {
+                cancelAllDownloads()
+            } else {
+                cancelDownload(uuid)
+            }
             return START_REDELIVER_INTENT
         }
 
@@ -151,6 +155,12 @@ class OfflineDownloadService : Service() {
                         .errorDownload(offlineDownload, error)
                 }
             })
+    }
+
+    private fun cancelAllDownloads() {
+        for (download in OfflinePlugin.getInstance(this).getActiveDownloads()) {
+            cancelDownload(download.uuid)
+        }
     }
 
     private fun cancelDownload(uuid: Long) {

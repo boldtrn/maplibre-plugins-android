@@ -88,7 +88,7 @@ fun makeRetryRequestNotification(
 
 fun createCancelIntent(context: Context): Intent {
     val cancelIntent = Intent(context, OfflineDownloadService::class.java)
-    cancelIntent.setAction(OfflineConstants.ACTION_CANCEL_DOWNLOAD)
+    cancelIntent.action = OfflineConstants.ACTION_CANCEL_DOWNLOAD
     return cancelIntent
 }
 
