@@ -158,8 +158,8 @@ class OfflineDownloadService : Service() {
     }
 
     private fun cancelAllDownloads() {
-        for (download in OfflinePlugin.getInstance(this).getActiveDownloads()) {
-            cancelDownload(download.uuid)
+        for (index in OfflinePlugin.getInstance(this).getActiveDownloads().size - 1 downTo 0) {
+            cancelDownload(OfflinePlugin.getInstance(this).getActiveDownloads()[index].uuid)
         }
     }
 
