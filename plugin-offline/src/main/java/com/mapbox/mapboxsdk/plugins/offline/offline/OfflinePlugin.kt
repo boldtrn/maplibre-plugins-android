@@ -69,9 +69,10 @@ class OfflinePlugin private constructor(private val context: Context) {
      *
      * @since 0.1.0
      */
-    fun cancelDownload() {
+    fun cancelDownload(offlineDownload: OfflineDownloadOptions) {
         val intent = Intent(context, OfflineDownloadService::class.java)
         intent.action = OfflineConstants.ACTION_CANCEL_DOWNLOAD
+        intent.putExtra(OfflineConstants.KEY_BUNDLE_OFFLINE_REGION_ID, offlineDownload.uuid)
         context.startService(intent)
     }
 
@@ -113,15 +114,14 @@ class OfflinePlugin private constructor(private val context: Context) {
      * @since 0.1.0
      */
     fun getActiveDownloadForOfflineRegion(offlineRegion: OfflineRegion): OfflineDownloadOptions? {
-        var offlineDownload: OfflineDownloadOptions? = null
         if (offlineDownloads.isNotEmpty()) {
             for (download in offlineDownloads) {
                 if (download.uuid == offlineRegion.id) {
-                    offlineDownload = download
+                    return download
                 }
             }
         }
-        return offlineDownload
+        return null
     }
 
     /**

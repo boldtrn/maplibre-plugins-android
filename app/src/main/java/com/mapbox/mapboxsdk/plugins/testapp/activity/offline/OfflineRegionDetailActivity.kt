@@ -171,7 +171,7 @@ class OfflineRegionDetailActivity : AppCompatActivity(), OfflineDownloadChangeLi
                 val offlineDownload =
                     offlinePlugin?.getActiveDownloadForOfflineRegion(it)
                 if (offlineDownload != null) {
-                    offlinePlugin?.cancelDownload()
+                    offlinePlugin?.cancelDownload(offlineDownload)
                     isDownloading = false
                 } else {
                     it.delete(offlineRegionDeleteCallback)
