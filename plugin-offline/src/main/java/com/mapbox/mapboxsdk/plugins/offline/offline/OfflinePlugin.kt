@@ -36,10 +36,12 @@ class OfflinePlugin private constructor(private val context: Context) {
     }
 
     /**
-     * Returns an immutable list of the currently active offline downloads
+     * Returns an immutable **copy** of the list of currently active offline downloads. Operations
+     * on this list are inherently thread-safe, since every caller is the sole owner of their own
+     * copy of the list.
      */
     fun getActiveDownloads(): List<OfflineDownloadOptions> {
-        return offlineDownloads
+        return ArrayList(offlineDownloads)
     }
 
     /**
