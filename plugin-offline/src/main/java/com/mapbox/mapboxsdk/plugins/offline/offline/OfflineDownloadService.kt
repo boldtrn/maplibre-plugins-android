@@ -237,13 +237,8 @@ class OfflineDownloadService : Service() {
             }
 
             override fun onError(error: OfflineRegionError) {
+                // These errors are typically recoverable, so don't remove them, but log it
                 Timber.w("onError with error = %s", error)
-                OfflinePlugin.getInstance(this@OfflineDownloadService).errorDownload(
-                    offlineDownload = offlineDownload,
-                    error = error.reason,
-                    errorMessage = error.message
-                )
-                maybeStopService(offlineDownload.uuid)
             }
 
             override fun mapboxTileCountLimitExceeded(limit: Long) {
