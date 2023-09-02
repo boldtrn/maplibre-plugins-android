@@ -95,8 +95,12 @@ class OfflineDownloadService : Service() {
             throw IllegalArgumentException("Invalid intent action $intentAction")
         }
 
-        val downloadOptions = requireNotNull(OfflinePlugin.getInstance(this).pendingDownloads) {
-            "Downloads must be set before starting the service"
+        val downloadOptions = OfflinePlugin.getInstance(this).pendingDownloads
+        if (downloadOptions.isNullOrEmpty()) {
+            Timber.w("Downloads were not set before starting the service, undefined state, stopping")
+            stopForegroundCompat()
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         Timber.d("service start with {%s}", downloadOptions)
@@ -165,7 +169,9 @@ class OfflineDownloadService : Service() {
 
     private fun cancelDownload(uuid: Long) {
         Timber.v("Requesting cancellation of download for Offlineregion with uuid = $uuid")
-        val downloadOptions = OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == uuid }.firstOrNull()
+        val downloadOptions =
+            OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == uuid }
+                .firstOrNull()
         val offlineRegion = requestedRegions[uuid]
         if (downloadOptions == null || offlineRegion == null) {
             Timber.w("Could not find download with uuid $uuid")
@@ -283,7 +289,9 @@ class OfflineDownloadService : Service() {
             // Store the progress in the model, so that it can be accessed later
             downloadOptions.progress = regionPercentage
             OfflinePlugin.getInstance(this).onProgressChanged(downloadOptions, regionPercentage)
-            OfflinePlugin.getInstance(this).getActiveDownloads().filter { it.uuid == downloadOptions.uuid }.forEach { it.progress = regionPercentage }
+            OfflinePlugin.getInstance(this).getActiveDownloads()
+                .filter { it.uuid == downloadOptions.uuid }
+                .forEach { it.progress = regionPercentage }
             updateNotificationProgress(downloadOptions)
         }
     }
@@ -311,14 +319,15 @@ class OfflineDownloadService : Service() {
         }
     }
 
-    private fun hasNotificationPermission() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-    } else {
-        true
-    }
+    private fun hasNotificationPermission() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
 
     private fun calculateTotalDownloadPercentage(): Int {
         var total = 0

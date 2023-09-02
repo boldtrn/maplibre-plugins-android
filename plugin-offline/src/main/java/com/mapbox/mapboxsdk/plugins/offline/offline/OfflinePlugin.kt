@@ -214,6 +214,17 @@ class OfflinePlugin private constructor(private val context: Context) {
         stateChangeDispatcher.onProgress(offlineDownload, progress)
     }
 
+    /**
+     * Instance field to hold the downloads that are requested by the caller of [startDownloads].
+     * The list is immutable after it has been set by the caller, so the
+     * [OfflineDownloadService] can use this knowledge as is, without fear of simultaneous
+     * modification or garbage collection. Repeated usage (for instance in onStartCommand, when
+     * the service is restarted) will lead to the same data being retrieved here.
+     *
+     * Using this field over parcelable data passed to the service has the advantage of speed,
+     * no serialization needed, and more importantly: there is no size limit (as opposed to a
+     * Parcelable, which can become so big as to crash Android).
+     */
     var pendingDownloads: List<OfflineDownloadOptions>? = null
         private set
 
