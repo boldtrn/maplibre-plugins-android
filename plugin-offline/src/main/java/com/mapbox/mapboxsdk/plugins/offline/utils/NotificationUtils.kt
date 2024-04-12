@@ -76,6 +76,7 @@ fun makeRetryRequestNotification(
     return NotificationCompat.Builder(context, OfflineConstants.NOTIFICATION_CHANNEL)
         .setContentTitle(notificationOptions.contentTitle)
         .setContentText(retryText)
+        .setSmallIcon(notificationOptions.smallIconRes)
         .setContentIntent(
             createNotificationIntent(
                 context.applicationContext,
@@ -84,7 +85,6 @@ fun makeRetryRequestNotification(
         )
         .build()
 }
-
 
 fun createCancelIntent(context: Context): Intent {
     val cancelIntent = Intent(context, OfflineDownloadService::class.java)
